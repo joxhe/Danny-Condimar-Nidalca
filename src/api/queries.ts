@@ -146,16 +146,59 @@ export function useEliminarPedidos() {
   });
 }
 
+/**
+ * Mezcla lo guardado con lo que ya estaba en la cache.
+ *
+ * Antes se reemplazaba la lista entera por lo que se acababa de mandar: como
+ * se guarda de a un cliente, la pantalla se quedaba con uno solo. Aca se
+ * indexa por id, se pisan los que cambiaron y se conservan los demas.
+ */
+function mezclarPorId<T extends { id: string }>(previos: T[], nuevos: T[]): T[] {
+  const porId = new Map(previos.map((x) => [x.id, x]));
+  for (const x of nuevos) porId.set(x.id, x);
+  return [...porId.values()];
+}
+
 export function useGuardarClientes() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ linea, datos }: { linea: Linea; datos: Cliente[] }) =>
       api.guardarClientes(linea, datos),
+
     onMutate: async ({ linea, datos }) => {
-      qc.setQueryData<api.Catalogos>(keys.catalogos, (prev) =>
-        prev ? { ...prev, clientes: { ...prev.clientes, [linea]: datos } } : prev,
+      await qc.cancelQueries({ queryKey: keys.catalogos });
+      const anterior = qc.getQueryData(keys.catalogos);
+
+      qc.setQueryData<{ datos: api.Catalogos; offline: boolean }>(keys.catalogos, (prev) =>
+        prev
+          ? {
+              ...prev,
+              datos: {
+                ...prev.datos,
+                clientes: {
+                  ...prev.datos.clientes,
+                  [linea]: mezclarPorId(prev.datos.clientes[linea], datos),
+                },
+              },
+            }
+          : prev,
       );
+      return { anterior };
     },
+
+    // Si falla la escritura se deshace lo que se mostro de mas.
+    onError: (_e, _v, ctx) => {
+      if (ctx?.anterior) qc.setQueryData(keys.catalogos, ctx.anterior);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.catalogos }),
+  });
+}
+
+export function useEliminarCliente() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.eliminarCliente(id),
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.catalogos }),
   });
 }
 
@@ -164,11 +207,32 @@ export function useGuardarProductos() {
   return useMutation({
     mutationFn: ({ linea, datos }: { linea: Linea; datos: Producto[] }) =>
       api.guardarProductos(linea, datos),
+
     onMutate: async ({ linea, datos }) => {
-      qc.setQueryData<api.Catalogos>(keys.catalogos, (prev) =>
-        prev ? { ...prev, productos: { ...prev.productos, [linea]: datos } } : prev,
+      await qc.cancelQueries({ queryKey: keys.catalogos });
+      const anterior = qc.getQueryData(keys.catalogos);
+
+      qc.setQueryData<{ datos: api.Catalogos; offline: boolean }>(keys.catalogos, (prev) =>
+        prev
+          ? {
+              ...prev,
+              datos: {
+                ...prev.datos,
+                productos: {
+                  ...prev.datos.productos,
+                  [linea]: mezclarPorId(prev.datos.productos[linea], datos),
+                },
+              },
+            }
+          : prev,
       );
+      return { anterior };
     },
+
+    onError: (_e, _v, ctx) => {
+      if (ctx?.anterior) qc.setQueryData(keys.catalogos, ctx.anterior);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.catalogos }),
   });
 }
 

@@ -33,6 +33,8 @@
  * sin abrir el editor. Si el `ping` responde una version distinta a la de
  * aqui, falta republicar.
  *
+ *   1.7.0  upsert mezcla con la fila existente: no borra columnas ausentes
+ *   1.6.0  eliminarCliente, solo para clientes sin pedidos
  *   1.5.0  borrado por bloques y eliminarPedidos para varios a la vez
  *   1.4.0  guardarInforme limpia las filas sin corte y ordena la pestaña
  *   1.3.0  se elimina la pestaña `comparativos`
@@ -40,7 +42,7 @@
  *   1.1.0  pedidos con el cliente unido y la fecha sin hora
  *   1.0.0  version inicial
  */
-const VERSION = '1.5.0';
+const VERSION = '1.7.0';
 
 const HOJA = {
   parametros: 'parametros',
@@ -97,6 +99,8 @@ function doPost(e) {
         return eliminarPedido(p.id);
       case 'eliminarPedidos':
         return eliminarPedidos(p.ids);
+      case 'eliminarCliente':
+        return eliminarCliente(p.id);
       case 'guardarClientes':
         return { guardados: upsert(HOJA.clientes, p.datos) };
       case 'guardarProductos':
@@ -211,8 +215,13 @@ function upsert(nombre, filas, campoClave) {
 
   const nuevas = [];
   for (let i = 0; i < filas.length; i++) {
-    const fila = aFila(filas[i], cols);
     const k = clave(filas[i], campos);
+    const fila = posicion[k]
+      ? // Al actualizar se MEZCLA con lo que ya estaba: una columna que no
+        // venga en el objeto conserva su valor en vez de quedar vacia.
+        aFila(fusionar(existentes[posicion[k] - 2], filas[i], cols), cols)
+      : aFila(filas[i], cols);
+
     if (posicion[k]) h.getRange(posicion[k], 1, 1, cols.length).setValues([fila]);
     else nuevas.push(fila);
   }
@@ -221,6 +230,22 @@ function upsert(nombre, filas, campoClave) {
     h.getRange(h.getLastRow() + 1, 1, nuevas.length, cols.length).setValues(nuevas);
   }
   return filas.length;
+}
+
+/**
+ * Combina la fila existente con la nueva, campo por campo.
+ *
+ * Solo pisa lo que venga definido. Sin esto, mandar un objeto al que le falta
+ * una columna la dejaba vacia: un simple error de nombre borraba datos en vez
+ * de no tocarlos. Para vaciar un campo a proposito hay que mandarlo como "".
+ */
+function fusionar(existente, nuevo, cols) {
+  const salida = {};
+  for (let i = 0; i < cols.length; i++) {
+    const c = cols[i];
+    salida[c] = nuevo[c] === undefined || nuevo[c] === null ? existente[c] : nuevo[c];
+  }
+  return salida;
 }
 
 /** Vacia la pestaña (menos la cabecera) y escribe las filas dadas. */
@@ -471,6 +496,31 @@ function reemplazarAlFinal(nombre, filas) {
     return aFila(f, cols);
   });
   h.getRange(h.getLastRow() + 1, 1, valores.length, cols.length).setValues(valores);
+}
+
+/**
+ * Borra un cliente de la hoja.
+ *
+ * Solo para clientes sin pedidos. Los que ya facturaron se desactivan en vez
+ * de borrarse (activo = NO): sus pedidos guardan el `cliente_id` y necesitan
+ * la fila para poder reimprimirse con nombre y direccion.
+ */
+function eliminarCliente(id) {
+  if (!id) throw new Error('Falta el id');
+
+  const candado = LockService.getScriptLock();
+  candado.waitLock(20000);
+  try {
+    const conPedidos = leer(HOJA.pedidos).some(function (p) {
+      return String(p.cliente_id).trim() === String(id).trim();
+    });
+    if (conPedidos) {
+      throw new Error('El cliente tiene pedidos: desactivelo en vez de borrarlo');
+    }
+    return { ok: true, clientes: borrarDonde(HOJA.clientes, 'id', id) };
+  } finally {
+    candado.releaseLock();
+  }
 }
 
 function eliminarPedido(id) {

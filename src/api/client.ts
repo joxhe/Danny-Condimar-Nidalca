@@ -97,6 +97,8 @@ function normalizarCliente(c: Record<string, unknown>): Cliente {
     telefono: String(c.telefono ?? c.telefonos ?? '').trim(),
     plazo_credito: Number(c.plazo_credito) || 30,
     compro: /^s/i.test(String(c.compro ?? '')),
+    // Solo un "NO" explicito desactiva: una celda vacia se toma como activo.
+    activo: String(c.activo ?? '').trim().toUpperCase() !== 'NO',
   };
 }
 
@@ -325,6 +327,10 @@ export function guardarClientes(linea: Linea, datos: Cliente[]) {
 }
 
 /** La hoja no espera el campo `linea` en cada fila: se quita al enviar. */
+export function eliminarCliente(id: string) {
+  return apiPost<unknown>({ accion: 'eliminarCliente', id });
+}
+
 export function guardarProductos(linea: Linea, datos: Producto[]) {
   const limpios = datos.map(({ linea: _omit, ...resto }) => resto);
   return apiPost<unknown>({ accion: 'guardarProductos', linea, datos: limpios });

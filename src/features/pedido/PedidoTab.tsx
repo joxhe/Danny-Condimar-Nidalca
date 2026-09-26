@@ -184,7 +184,7 @@ export function PedidoTab() {
           items={clientes}
           valor={b.cliente}
           etiqueta={(c) => c.razon_social}
-          detalle={(c) => `NIT ${c.nit}${c.dv ? '-' + c.dv : ''} · ${c.ciudad}`}
+          detalle={(c) => `NIT ${c.nit} · ${c.ciudad}`}
           onElegir={b.setCliente}
         />
 

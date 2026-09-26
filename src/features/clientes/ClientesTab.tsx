@@ -1,6 +1,12 @@
 import { useMemo, useState } from 'react';
-import { useCatalogos, useGuardarClientes } from '../../api/queries';
+import {
+  useCatalogos,
+  useEliminarCliente,
+  useGuardarClientes,
+  usePedidos,
+} from '../../api/queries';
 import { CampoNumero } from '../../components/CampoNumero';
+import { IconoBorrar, IconoEditar } from '../../components/Iconos';
 import { ListadoEsqueleto } from '../../components/Esqueleto';
 import { CLIENTE_VACIO, type Cliente, type Linea } from '../../domain/types';
 import { confirmar } from '../../store/dialogo';
@@ -11,6 +17,8 @@ type Filtro = 'todos' | 'compraron' | 'no-compraron';
 export function ClientesTab({ linea }: { linea: Linea }) {
   const { data: catalogos, isLoading } = useCatalogos();
   const guardar = useGuardarClientes();
+  const eliminar = useEliminarCliente();
+  const { data: pedidos = [] } = usePedidos();
 
   const [consulta, setConsulta] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
@@ -64,6 +72,56 @@ export function ClientesTab({ linea }: { linea: Linea }) {
       toast.ok('Cliente guardado.');
     } catch (e) {
       toast.error('No se pudo guardar: ' + (e as Error).message);
+    }
+  }
+
+  /** Cuantos pedidos hay a nombre de este cliente. */
+  function pedidosDe(c: Cliente): number {
+    return pedidos.filter((p) => p.cliente?.id === c.id).length;
+  }
+
+  /*
+   * Borrar de verdad solo a quien nunca facturo.
+   *
+   * Los pedidos guardan el `cliente_id` y necesitan la fila para reimprimirse
+   * con nombre y direccion. A los que ya compraron se los desactiva: salen de
+   * las listas y del buscador, pero sus documentos siguen completos.
+   */
+  async function quitar(c: Cliente) {
+    const cuantos = pedidosDe(c);
+
+    if (cuantos > 0) {
+      const ok = await confirmar({
+        titulo: `${c.razon_social} tiene ${cuantos} pedido(s)`,
+        mensaje:
+          'No se puede borrar sin dejar esos pedidos sin nombre al reimprimirlos. Se puede desactivar: desaparece de las listas y del buscador, pero sus documentos siguen completos.',
+        confirmar: 'Desactivar',
+        peligro: true,
+      });
+      if (!ok) return;
+
+      try {
+        await guardar.mutateAsync({ linea, datos: [{ ...c, activo: false }] });
+        toast.ok(`${c.razon_social} desactivado.`);
+      } catch (e) {
+        toast.error('No se pudo desactivar: ' + (e as Error).message);
+      }
+      return;
+    }
+
+    const ok = await confirmar({
+      titulo: `¿Eliminar a ${c.razon_social}?`,
+      mensaje: 'No tiene pedidos, así que se borra definitivamente de la hoja.',
+      confirmar: 'Eliminar',
+      peligro: true,
+    });
+    if (!ok) return;
+
+    try {
+      await eliminar.mutateAsync(c.id);
+      toast.ok('Cliente eliminado.');
+    } catch (e) {
+      toast.error('No se pudo eliminar: ' + (e as Error).message);
     }
   }
 
@@ -132,7 +190,7 @@ export function ClientesTab({ linea }: { linea: Linea }) {
                     Teléfono
                   </th>
                   <th style={{ width: 80 }}>Plazo</th>
-                  <th style={{ width: 90 }} />
+                  <th style={{ width: 170 }} />
                 </tr>
               </thead>
               <tbody>
@@ -147,7 +205,6 @@ export function ClientesTab({ linea }: { linea: Linea }) {
                     </td>
                     <td data-etiqueta="NIT" className="num">
                       {c.nit}
-                      {c.dv && <span className="dv">-{c.dv}</span>}
                     </td>
                     <td data-etiqueta="Ciudad">{c.ciudad}</td>
                     <td data-etiqueta="Dirección" className="ocultar-movil">
@@ -160,13 +217,25 @@ export function ClientesTab({ linea }: { linea: Linea }) {
                       {c.plazo_credito} d
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn-fantasma"
-                        onClick={() => setEditando({ ...c })}
-                      >
-                        Editar
-                      </button>
+                      <div className="acciones-fila">
+                        <button
+                          type="button"
+                          className="btn-icono"
+                          onClick={() => setEditando({ ...c })}
+                          title={`Editar ${c.razon_social}`}
+                        >
+                          <IconoEditar />
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-icono peligro"
+                          onClick={() => quitar(c)}
+                          title={`Eliminar ${c.razon_social}`}
+                        >
+                          <IconoBorrar />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -213,23 +282,12 @@ function FormularioCliente({
           />
         </div>
 
-        <div>
+        <div className="campo-ancho">
           <label htmlFor="nit">NIT o cédula</label>
           <input
             id="nit"
             value={cliente.nit}
             onChange={(e) => set('nit')(e.target.value)}
-            inputMode="numeric"
-          />
-        </div>
-
-        <div>
-          <label htmlFor="dv">Dígito de verificación</label>
-          <input
-            id="dv"
-            value={cliente.dv}
-            maxLength={1}
-            onChange={(e) => set('dv')(e.target.value.replace(/\D/g, ''))}
             inputMode="numeric"
           />
         </div>

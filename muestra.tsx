@@ -36,6 +36,7 @@ const pedido: Pedido = {
     telefono: '7746138',
     plazo_credito: 30,
     compro: true,
+    activo: true,
   },
   fecha: '2026-09-08',
   items,

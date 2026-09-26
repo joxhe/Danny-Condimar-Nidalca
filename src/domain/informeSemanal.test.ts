@@ -58,7 +58,7 @@ function pedido(fecha: string, items: ItemPedido[], numero = 1): Pedido {
     id: fecha + numero,
     numero,
     linea: 'CONDIMAR',
-    cliente: { id: 'CC-001', razon_social: 'X', nit: '', dv: '', direccion: '', ciudad: '', telefono: '', plazo_credito: 30, compro: true },
+    cliente: { id: 'CC-001', razon_social: 'X', nit: '', dv: '', direccion: '', ciudad: '', telefono: '', plazo_credito: 30, compro: true, activo: true },
     fecha,
     items,
     obsGenerales: '',

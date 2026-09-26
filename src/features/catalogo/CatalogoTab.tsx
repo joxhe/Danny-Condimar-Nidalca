@@ -1,19 +1,47 @@
 import { useMemo, useState } from 'react';
-import { useCatalogos } from '../../api/queries';
+import { useCatalogos, useGuardarProductos } from '../../api/queries';
 import { ListadoEsqueleto } from '../../components/Esqueleto';
+import { IconoEditar } from '../../components/Iconos';
 import { COP, unidadesPorCaja } from '../../domain';
 import type { Linea, Producto } from '../../domain/types';
+import { toast } from '../../store/toast';
+import { FormularioProducto } from './FormularioProducto';
 
 /**
- * Consulta de precios.
+ * Catalogo y edicion de articulos.
  *
- * Es de solo lectura a proposito: los precios los fija la empresa, no el
- * vendedor. Para corregir uno se edita la hoja y se recarga.
+ * Cambiar un precio aqui solo rige para los pedidos que se emitan despues:
+ * cada renglon guarda su propio precio al guardarse el pedido, y un documento
+ * ya entregado no puede cambiar de importe.
  */
 export function CatalogoTab({ linea }: { linea: Linea }) {
   const { data: catalogos, isLoading } = useCatalogos();
+  const guardar = useGuardarProductos();
   const [consulta, setConsulta] = useState('');
   const [categoria, setCategoria] = useState('todas');
+  const [editando, setEditando] = useState<Producto | null>(null);
+  const [precioOriginal, setPrecioOriginal] = useState(0);
+
+  const referencias = useMemo(
+    () => catalogos.referencias.filter((r) => r.linea === linea),
+    [catalogos.referencias, linea],
+  );
+
+  function abrir(p: Producto) {
+    setEditando({ ...p });
+    setPrecioOriginal(p.precio);
+  }
+
+  async function guardarProducto() {
+    if (!editando) return;
+    try {
+      await guardar.mutateAsync({ linea, datos: [editando] });
+      setEditando(null);
+      toast.ok(`${editando.producto} actualizado.`);
+    } catch (e) {
+      toast.error('No se pudo guardar: ' + (e as Error).message);
+    }
+  }
 
   const productos = catalogos.productos[linea];
 
@@ -38,7 +66,20 @@ export function CatalogoTab({ linea }: { linea: Linea }) {
   const esCondimar = linea === 'CONDIMAR';
 
   return (
-    <div className="tarjeta">
+    <>
+      {editando && (
+        <FormularioProducto
+          producto={editando}
+          precioOriginal={precioOriginal}
+          referencias={referencias}
+          onCambiar={setEditando}
+          onGuardar={guardarProducto}
+          onCancelar={() => setEditando(null)}
+          guardando={guardar.isPending}
+        />
+      )}
+
+      <div className="tarjeta">
       <div className="barra-herramientas">
         <div className="tarjeta-titulo" style={{ marginBottom: 0 }}>
           Catálogo — {esCondimar ? 'Condimar' : 'Nidalca'} ({lista.length} de{' '}
@@ -78,21 +119,29 @@ export function CatalogoTab({ linea }: { linea: Linea }) {
                 {esCondimar && <th style={{ width: 70 }}>ICUI</th>}
                 {esCondimar && <th style={{ width: 90 }}>Por caja</th>}
                 <th style={{ width: 140 }}>Referencia</th>
+                <th style={{ width: 90 }} />
               </tr>
             </thead>
             <tbody>
               {lista.map((p) => (
-                <FilaProducto key={p.id} producto={p} />
+                <FilaProducto key={p.id} producto={p} onEditar={() => abrir(p)} />
               ))}
             </tbody>
           </table>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 
-function FilaProducto({ producto: p }: { producto: Producto }) {
+function FilaProducto({
+  producto: p,
+  onEditar,
+}: {
+  producto: Producto;
+  onEditar: () => void;
+}) {
   const esCondimar = p.linea === 'CONDIMAR';
 
   return (
@@ -127,6 +176,18 @@ function FilaProducto({ producto: p }: { producto: Producto }) {
 
       <td data-etiqueta="Referencia">
         <span className="pildora pildora-referencia">{p.referenciaId || '—'}</span>
+      </td>
+
+      <td>
+        <button
+          type="button"
+          className="btn-icono"
+          onClick={onEditar}
+          title={`Editar ${p.producto}`}
+        >
+          <IconoEditar />
+          Editar
+        </button>
       </td>
     </tr>
   );

@@ -28,7 +28,13 @@ export interface Cliente {
   razon_social: string;
   /** NIT o cedula, sin digito de verificacion. */
   nit: string;
-  /** Digito de verificacion, cuando el cliente lo tiene. */
+  /**
+   * Digito de verificacion del NIT.
+   *
+   * No se muestra ni se edita: solo hace falta para facturacion electronica,
+   * que este negocio no usa. Se conserva en el modelo para no borrar el dato
+   * de los 142 clientes que ya lo traian al guardarlos.
+   */
   dv: string;
   direccion: string;
   ciudad: string;
@@ -36,6 +42,8 @@ export interface Cliente {
   plazo_credito: number;
   /** La hoja del cliente marca quien compro en el periodo. */
   compro: boolean;
+  /** Los inactivos no aparecen en la app, pero su fila sigue en la hoja. */
+  activo: boolean;
 }
 
 interface ProductoBase {
@@ -131,6 +139,7 @@ export const CLIENTE_VACIO: Cliente = {
   telefono: '',
   plazo_credito: 30,
   compro: false,
+  activo: true,
 };
 
 // ---------------------------------------------------------------------------
