@@ -322,8 +322,32 @@ export function eliminarPedidos(ids: string[]) {
   return apiPost<unknown>({ accion: 'eliminarPedidos', ids });
 }
 
+/*
+ * Al escribir hay que traducir de vuelta a los nombres de la hoja.
+ *
+ * El script ordena cada fila segun la cabecera de la pestaña, asi que un campo
+ * con el nombre del dominio no se reconoce: `compro: true` en vez de "SI", o
+ * un `linea` ausente, dejan la celda con un valor que despues no se relee.
+ */
 export function guardarClientes(linea: Linea, datos: Cliente[]) {
-  return apiPost<unknown>({ accion: 'guardarClientes', linea, datos });
+  return apiPost<unknown>({
+    accion: 'guardarClientes',
+    linea,
+    datos: datos.map((c) => ({
+      id: c.id,
+      linea,
+      razon_social: c.razon_social,
+      nit: c.nit,
+      dv: c.dv,
+      direccion: c.direccion,
+      ciudad: c.ciudad,
+      telefono: c.telefono,
+      plazo_credito: c.plazo_credito,
+      // La hoja guarda SI/NO: mandar `true` lo releeria como "no compro".
+      compro: c.compro ? 'SI' : 'NO',
+      activo: c.activo ? 'SI' : 'NO',
+    })),
+  });
 }
 
 /** La hoja no espera el campo `linea` en cada fila: se quita al enviar. */
@@ -332,6 +356,21 @@ export function eliminarCliente(id: string) {
 }
 
 export function guardarProductos(linea: Linea, datos: Producto[]) {
-  const limpios = datos.map(({ linea: _omit, ...resto }) => resto);
-  return apiPost<unknown>({ accion: 'guardarProductos', linea, datos: limpios });
+  return apiPost<unknown>({
+    accion: 'guardarProductos',
+    linea,
+    datos: datos.map((p) => ({
+      id: p.id,
+      linea,
+      categoria: p.categoria,
+      producto: p.producto,
+      precio: p.precio,
+      // En la hoja se llaman con sufijo porque conviven con columnas en pesos.
+      iva_pct: p.iva,
+      icui_pct: p.linea === 'CONDIMAR' ? p.icui : 0,
+      embalaje: p.linea === 'CONDIMAR' ? p.embalaje : 1,
+      referencia_id: p.referenciaId,
+      activo: 'SI',
+    })),
+  });
 }
