@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useCatalogos, useGuardarPedido, useSiguienteNumero } from '../../api/queries';
 import { Buscador } from '../../components/Buscador';
 import { CampoNumero } from '../../components/CampoNumero';
+import { IconoMas } from '../../components/Iconos';
 import { PedidoEsqueleto } from '../../components/Esqueleto';
 import {
   COP,
@@ -22,6 +23,32 @@ import { toast } from '../../store/toast';
  * ruta con señal mala es la diferencia entre abrir la app y quedarse mirando.
  */
 const cargarPdf = () => import('../../pdf/generar');
+
+const BUSCADOR_ARTICULO = 'buscador-articulo';
+
+/**
+ * Atajo para seguir agregando sin volver a subir.
+ *
+ * Con quince renglones cargados, el buscador queda fuera de pantalla y hay que
+ * recorrer toda la lista para llegar. Este boton lleva el foco alla y deja el
+ * campo listo para escribir, sin duplicar el buscador ni su estado.
+ */
+function AgregarOtro() {
+  return (
+    <button
+      type="button"
+      className="btn-agregar-otro"
+      onClick={() => {
+        const campo = document.getElementById(BUSCADOR_ARTICULO);
+        campo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        campo?.focus({ preventScroll: true });
+      }}
+    >
+      <IconoMas />
+      Agregar otro artículo
+    </button>
+  );
+}
 
 export function PedidoTab() {
   const { data: catalogos, isLoading, offline } = useCatalogos();
@@ -167,6 +194,7 @@ export function PedidoTab() {
       <div className="tarjeta">
         <label htmlFor="articulo">Agregar artículo</label>
         <Buscador<Producto>
+          inputId={BUSCADOR_ARTICULO}
           placeholder={`Buscar entre ${productos.length} artículos…`}
           items={productos}
           limpiarAlElegir
@@ -179,6 +207,7 @@ export function PedidoTab() {
         />
 
         <TablaItems />
+        <AgregarOtro />
       </div>
 
       <div className="tarjeta">

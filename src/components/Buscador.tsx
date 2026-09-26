@@ -13,6 +13,8 @@ interface Props<T> {
   /** Vaciar el buscador despues de elegir. Util para agregar articulos. */
   limpiarAlElegir?: boolean;
   autoFocus?: boolean;
+  /** Para poder enfocarlo desde otro punto de la pantalla. */
+  inputId?: string;
 }
 
 const MAX_RESULTADOS = 40;
@@ -33,6 +35,7 @@ export function Buscador<T>({
   valor,
   limpiarAlElegir,
   autoFocus,
+  inputId,
 }: Props<T>) {
   const [consulta, setConsulta] = useState('');
   const [abierto, setAbierto] = useState(false);
@@ -89,6 +92,7 @@ export function Buscador<T>({
   return (
     <div className="buscador" ref={caja}>
       <input
+        id={inputId}
         type="text"
         role="combobox"
         aria-expanded={abierto}

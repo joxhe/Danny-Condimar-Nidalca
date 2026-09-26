@@ -217,3 +217,38 @@ describe('que pedidos entran', () => {
   });
 });
 
+
+describe('los totales van en venta neta', () => {
+  it('excluye IVA e ICUI: el Informe mide venta, no recaudo', () => {
+    const conImpuestos = item({
+      producto: 'COMINO X 500',
+      referenciaId: 'BOLSA-INST',
+      embalaje: 16,
+      cantidad: 16,
+      precio: 1000,
+    });
+    conImpuestos.iva = 19;
+    if (conImpuestos.linea === 'CONDIMAR') conImpuestos.icui = 20;
+
+    const inf = armar(2, [pedido('2026-09-09', [conImpuestos])]);
+    const total = inf.filas.find((f) => f.esTotal && f.linea === 'CONDIMAR')!;
+
+    // 16 x $1.000 = $16.000 netos. Con impuestos serian $22.240.
+    expect(total.nuevoAcumulado).toBe(16000);
+  });
+
+  it('el descuento sí se resta del neto', () => {
+    const conDescuento = item({
+      producto: 'X',
+      referenciaId: 'BOLSA-INST',
+      embalaje: 16,
+      cantidad: 10,
+      precio: 1000,
+    });
+    conDescuento.descuentoPct = 20;
+
+    const inf = armar(2, [pedido('2026-09-09', [conDescuento])]);
+    const total = inf.filas.find((f) => f.esTotal && f.linea === 'CONDIMAR')!;
+    expect(total.nuevoAcumulado).toBe(8000);
+  });
+});

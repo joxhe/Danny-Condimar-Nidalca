@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useEliminarPedido, useEliminarPedidos, usePedidos } from '../../api/queries';
 import { ListadoEsqueleto } from '../../components/Esqueleto';
-import { IconoBorrar, IconoEditar, IconoPdf } from '../../components/Iconos';
+import { IconoBorrar, IconoEditar, IconoOjo, IconoPdf } from '../../components/Iconos';
 import { COP, fmtDate } from '../../domain';
 import type { EstadoPedido, Linea, Pedido } from '../../domain/types';
 import { confirmar } from '../../store/dialogo';
@@ -50,6 +50,16 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
     cargarDesde(p);
     onEditar();
     toast.ok(`Pedido No. ${p.numero} abierto para editar.`);
+  }
+
+  /** Abre el PDF en otra pestaña, sin descargarlo ni compartirlo. */
+  async function verPdf(p: Pedido) {
+    try {
+      const pdf = await cargarPdf();
+      pdf.previsualizar(await pdf.pedidoABlob(p));
+    } catch (e) {
+      toast.error('No se pudo abrir la vista previa: ' + (e as Error).message);
+    }
   }
 
   async function reimprimir(p: Pedido) {
@@ -186,7 +196,7 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
                 <th style={{ width: 110 }}>Fecha</th>
                 <th style={{ width: 110 }}>Estado</th>
                 <th style={{ width: 120 }}>Total</th>
-                <th style={{ width: 210 }} />
+                <th style={{ width: 280 }} />
               </tr>
             </thead>
             <tbody>
@@ -233,8 +243,17 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
                       <button
                         type="button"
                         className="btn-icono"
+                        onClick={() => verPdf(p)}
+                        title={`Ver el pedido No. ${p.numero}`}
+                      >
+                        <IconoOjo />
+                        Ver
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-icono"
                         onClick={() => reimprimir(p)}
-                        title={`Generar el PDF del pedido No. ${p.numero}`}
+                        title={`Descargar o compartir el pedido No. ${p.numero}`}
                       >
                         <IconoPdf />
                         PDF

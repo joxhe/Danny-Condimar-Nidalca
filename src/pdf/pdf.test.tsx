@@ -292,7 +292,8 @@ describe('InformeSemanalPDF', () => {
     expect(f.nuevoAcumulado).toBe(3);
 
     const texto = textoDe(await renderToBuffer(<InformeSemanalPDF informe={informe} />));
-    expect(texto).toContain('$485.668'); // el total de la linea, en pesos
+    // Venta neta, sin IVA ni ICUI: es el SUBTOTAL del pedido, no el total.
+    expect(texto).toContain('$349.402');
   });
 
   it('avisa que las unidades sueltas quedan pendientes', async () => {

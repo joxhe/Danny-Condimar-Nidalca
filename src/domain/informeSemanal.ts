@@ -265,7 +265,16 @@ function sumar(filas: FilaInforme[], campo: keyof FilaInforme): number {
   return filas.reduce((s, f) => s + (Number(f[campo]) || 0), 0);
 }
 
-/** Total facturado de una linea, antes del corte y hasta el corte. */
+/**
+ * Venta neta de una linea, antes del corte y hasta el corte.
+ *
+ * Neta quiere decir SIN IVA NI ICUI: bruto menos descuento, y nada mas. El
+ * impuesto no es ingreso del negocio, se recauda para el Estado, asi que
+ * sumarlo inflaria el cumplimiento contra un presupuesto que esta en neto.
+ *
+ * Es la misma base sobre la que se liquidan los impuestos en el pedido, o sea
+ * el SUBTOTAL que aparece impreso en el documento.
+ */
 function totalEnPesos(pedidos: Pedido[], linea: Linea, desde: string) {
   let antes = 0;
   let hasta = 0;
@@ -274,12 +283,9 @@ function totalEnPesos(pedidos: Pedido[], linea: Linea, desde: string) {
     if (p.linea !== linea) continue;
     // Se recalcula desde los renglones en vez de confiar en la cabecera
     // guardada: si un precio cambio, el pedido emitido manda.
-    const total = p.items.reduce((s, it) => {
-      const l = calcularLinea(it);
-      return s + l.base + l.iva + l.icui;
-    }, 0);
-    hasta += total;
-    if (p.fecha < desde) antes += total;
+    const neto = p.items.reduce((s, it) => s + calcularLinea(it).base, 0);
+    hasta += neto;
+    if (p.fecha < desde) antes += neto;
   }
 
   return { antes, hasta };

@@ -1191,3 +1191,24 @@ table.informe .apagado {
   color: var(--tinta-media);
   line-height: 1.5;
 }
+
+/* Atajo al buscador cuando la lista de artículos se hace larga. */
+.btn-agregar-otro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  margin-top: var(--e3);
+  padding: 12px;
+  background: transparent;
+  color: var(--acento);
+  border: 1.5px dashed var(--borde-fuerte);
+  border-radius: var(--radio-sm);
+}
+
+.btn-agregar-otro:hover {
+  background: var(--acento-suave);
+  border-color: var(--acento);
+  border-style: solid;
+}
