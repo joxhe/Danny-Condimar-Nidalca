@@ -1,0 +1,66 @@
+# ---------------------------------------------------------------------------
+# Datos del cliente — NO SUBIR
+# ---------------------------------------------------------------------------
+# Los Excel traen 231 clientes reales con nombre, NIT, direccion y telefono.
+# Eso es dato personal: no va a un repositorio, ni publico ni privado.
+# La verdad de esos datos vive en el Google Sheet, no aca.
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+
+# La aplicacion anterior, guardada como referencia mientras se migra.
+app-vieja.html
+
+# PDFs generados: son documentos con datos de clientes reales.
+*.pdf
+
+# ---------------------------------------------------------------------------
+# Secretos
+# ---------------------------------------------------------------------------
+# La URL del Apps Script es la llave de la hoja: quien la tiene lee y escribe
+# todo. En Vercel se define como variable de entorno del proyecto.
+.env
+.env.local
+.env.*.local
+
+# ---------------------------------------------------------------------------
+# Dependencias y compilados
+# ---------------------------------------------------------------------------
+node_modules
+dist
+dist-ssr
+.vite
+*.tsbuildinfo
+
+# Despliegue
+.vercel
+
+# ---------------------------------------------------------------------------
+# Registros
+# ---------------------------------------------------------------------------
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ---------------------------------------------------------------------------
+# Sistema operativo y editores
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+*.local
+
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
