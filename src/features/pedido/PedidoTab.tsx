@@ -26,6 +26,21 @@ const cargarPdf = () => import('../../pdf/generar');
 
 const BUSCADOR_ARTICULO = 'buscador-articulo';
 
+const idCantidad = (lineId: string) => `cantidad-${lineId}`;
+
+/**
+ * Lleva el foco a un campo cuando ya esta en pantalla.
+ *
+ * Dos cuadros de animacion: el primero deja que React pinte el renglon nuevo,
+ * el segundo asegura que el navegador ya lo haya maquetado. Con uno solo, a
+ * veces el campo todavia no existia y el foco se perdia.
+ */
+function enfocar(id: string) {
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => document.getElementById(id)?.focus()),
+  );
+}
+
 /**
  * Atajo para seguir agregando sin volver a subir.
  *
@@ -63,6 +78,9 @@ export function PedidoTab() {
   const productos = catalogos.productos[b.linea];
 
   async function asegurarNumero(): Promise<string | number> {
+    // Primero la identidad: el numero y el id viajan juntos. Si el id no se
+    // fija aqui, el siguiente guardado crea otra fila con el mismo numero.
+    b.asegurarId();
     if (b.numero) return b.numero;
     const r = await pedirNumero.mutateAsync(b.linea);
     b.setNumero(r.numero);
@@ -201,8 +219,10 @@ export function PedidoTab() {
           etiqueta={(p) => p.producto}
           detalle={(p) => `${p.categoria} · ${COP(p.precio)}`}
           onElegir={(p) => {
-            b.agregarProducto(p);
+            const lineId = b.agregarProducto(p);
             toast.ok(`${p.producto} agregado.`);
+            // Directo a la cantidad: es lo unico que falta completar.
+            enfocar(idCantidad(lineId));
           }}
         />
 
@@ -336,10 +356,13 @@ function FilaItem({
 
       <td data-etiqueta="Cantidad">
         <CampoNumero
+          id={idCantidad(item.lineId)}
           valor={item.cantidad}
           min={0}
           etiqueta={`Cantidad de ${item.producto}`}
           onCambiar={(cantidad) => onCambiar({ cantidad })}
+          // Enter vuelve al buscador para seguir con el siguiente articulo.
+          onEnter={() => enfocar(BUSCADOR_ARTICULO)}
         />
       </td>
 

@@ -170,10 +170,12 @@ describe('PedidoPDF', () => {
   });
 
   it('la paginacion respeta el alto real: las observaciones empujan hojas', async () => {
-    const largos = Array.from({ length: 20 }, (_, i) =>
+    // En media carta horizontal caben mas renglones por hoja: con 20 la
+    // diferencia no alcanzaba a notarse, con 40 si.
+    const largos = Array.from({ length: 40 }, (_, i) =>
       item(i + 1, 'Entregar en bodega trasera, coordinar con el jefe de patio'),
     );
-    const cortos = Array.from({ length: 20 }, (_, i) => item(i + 1));
+    const cortos = Array.from({ length: 40 }, (_, i) => item(i + 1));
 
     const conObs = contarPaginas(await renderToBuffer(<PedidoPDF pedido={pedido(largos)} />));
     const sinObs = contarPaginas(await renderToBuffer(<PedidoPDF pedido={pedido(cortos)} />));

@@ -1,7 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useEliminarPedido, useEliminarPedidos, usePedidos } from '../../api/queries';
 import { ListadoEsqueleto } from '../../components/Esqueleto';
-import { IconoBorrar, IconoEditar, IconoOjo, IconoPdf } from '../../components/Iconos';
+import {
+  IconoBorrar,
+  IconoEditar,
+  IconoImprimir,
+  IconoOjo,
+  IconoPdf,
+} from '../../components/Iconos';
 import { COP, fmtDate } from '../../domain';
 import type { EstadoPedido, Linea, Pedido } from '../../domain/types';
 import { confirmar } from '../../store/dialogo';
@@ -9,6 +15,31 @@ import { usePedidoBorrador } from '../../store/pedidoBorrador';
 import { toast } from '../../store/toast';
 
 const cargarPdf = () => import('../../pdf/generar');
+
+type Papel = 'media-carta' | 'carta-doble';
+
+/*
+ * El papel elegido se recuerda en este dispositivo: quien tiene resmas
+ * cortadas a la mitad no deberia elegirlo cada vez. Si el almacenamiento no
+ * esta disponible (navegacion privada) simplemente se usa media carta.
+ */
+const CLAVE_PAPEL = 'papel_impresion';
+
+function papelGuardado(): Papel {
+  try {
+    return localStorage.getItem(CLAVE_PAPEL) === 'carta-doble' ? 'carta-doble' : 'media-carta';
+  } catch {
+    return 'media-carta';
+  }
+}
+
+function guardarPapel(p: Papel) {
+  try {
+    localStorage.setItem(CLAVE_PAPEL, p);
+  } catch {
+    /* sin almacenamiento: se elige de nuevo la proxima vez */
+  }
+}
 
 type FiltroEstado = EstadoPedido | 'todos';
 type FiltroLinea = Linea | 'todas';
@@ -18,6 +49,8 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
   const eliminar = useEliminarPedido();
   const eliminarVarios = useEliminarPedidos();
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [papel, setPapel] = useState<Papel>(papelGuardado);
+  const [imprimiendo, setImprimiendo] = useState(false);
   const cargarDesde = usePedidoBorrador((s) => s.cargarDesde);
   const tieneContenido = usePedidoBorrador((s) => s.tieneContenido);
 
@@ -88,6 +121,26 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
     setMarcados(todosMarcados ? new Set() : new Set(lista.map((p) => p.id)));
   }
 
+  /**
+   * Abre los marcados en un solo PDF, listo para mandar a la impresora.
+   *
+   * Se abre en otra pestaña y no se dispara el dialogo de impresion desde la
+   * pagina: imprimir el PDF desde el visor del navegador es lo confiable. La
+   * hoja en blanco de la app anterior salia justamente de imprimir el DOM.
+   */
+  async function imprimirMarcados() {
+    if (!visiblesMarcados.length) return;
+    setImprimiendo(true);
+    try {
+      const pdf = await cargarPdf();
+      pdf.previsualizar(await pdf.pedidosParaImprimir(visiblesMarcados, papel));
+    } catch (e) {
+      toast.error('No se pudo armar la impresión: ' + (e as Error).message);
+    } finally {
+      setImprimiendo(false);
+    }
+  }
+
   /** Borra los marcados en una sola llamada, no uno por uno. */
   async function borrarMarcados() {
     const ids = visiblesMarcados.map((p) => p.id);
@@ -136,18 +189,41 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
         <div className="tarjeta-titulo" style={{ marginBottom: 0 }}>
           Pedidos ({lista.length})
           {visiblesMarcados.length > 0 && (
-            <button
-              type="button"
-              className="btn-icono peligro"
-              style={{ marginLeft: 'var(--e3)' }}
-              onClick={borrarMarcados}
-              disabled={eliminarVarios.isPending}
-            >
-              <IconoBorrar />
-              {eliminarVarios.isPending
-                ? 'Eliminando…'
-                : `Eliminar ${visiblesMarcados.length}`}
-            </button>
+            <span className="acciones-lote">
+              <select
+                value={papel}
+                onChange={(e) => {
+                  const p = e.target.value as Papel;
+                  setPapel(p);
+                  guardarPapel(p);
+                }}
+                aria-label="Papel de impresión"
+                title="Papel de impresión"
+              >
+                <option value="media-carta">Media carta</option>
+                <option value="carta-doble">Carta, 2 por hoja</option>
+              </select>
+              <button
+                type="button"
+                className="btn-icono"
+                onClick={imprimirMarcados}
+                disabled={imprimiendo}
+              >
+                <IconoImprimir />
+                {imprimiendo ? 'Armando…' : `Imprimir ${visiblesMarcados.length}`}
+              </button>
+              <button
+                type="button"
+                className="btn-icono peligro"
+                onClick={borrarMarcados}
+                disabled={eliminarVarios.isPending}
+              >
+                <IconoBorrar />
+                {eliminarVarios.isPending
+                  ? 'Eliminando…'
+                  : `Eliminar ${visiblesMarcados.length}`}
+              </button>
+            </span>
           )}
         </div>
         <div className="filtros">

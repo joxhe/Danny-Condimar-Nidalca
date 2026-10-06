@@ -4,7 +4,7 @@ import type { Pedido } from '../domain/types';
 import type { InformeSemanal } from '../domain/informeSemanal';
 import { InformePDF } from './InformePDF';
 import { InformeSemanalPDF } from './InformeSemanalPDF';
-import { PedidoPDF } from './PedidoPDF';
+import { PedidoPDF, PedidosPDF } from './PedidoPDF';
 
 /**
  * Entrega del documento.
@@ -22,6 +22,36 @@ import { PedidoPDF } from './PedidoPDF';
 
 export function pedidoABlob(pedido: Pedido): Promise<Blob> {
   return pdf(<PedidoPDF pedido={pedido} />).toBlob();
+}
+
+/** Papel en el que se va a imprimir un lote de pedidos. */
+export type Papel = 'media-carta' | 'carta-doble';
+
+/** Como un talonario: por linea y, dentro de cada una, por numero. */
+function enOrden(pedidos: Pedido[]): Pedido[] {
+  return [...pedidos].sort(
+    (a, b) => a.linea.localeCompare(b.linea) || Number(a.numero) - Number(b.numero),
+  );
+}
+
+/**
+ * Varios pedidos listos para imprimir.
+ *
+ *   media-carta  Una media hoja por pedido. Para papel ya cortado por la mitad.
+ *   carta-doble  Dos pedidos por hoja carta, con linea de corte al medio.
+ *
+ * En los dos casos el PDF ya trae el tamaño de la hoja final, asi que no hace
+ * falta acomodar nada en el dialogo de impresion.
+ */
+export async function pedidosParaImprimir(pedidos: Pedido[], papel: Papel): Promise<Blob> {
+  const medias = await pdf(<PedidosPDF pedidos={enOrden(pedidos)} />).toBlob();
+  if (papel === 'media-carta') return medias;
+
+  // pdf-lib pesa unos 200 KB y solo hace falta para acomodar de a dos: se
+  // carga aparte, para que compartir un pedido desde el celular no la baje.
+  const { imponerDosPorHoja } = await import('./imponer');
+  const hojas = await imponerDosPorHoja(await medias.arrayBuffer());
+  return new Blob([hojas as Uint8Array<ArrayBuffer>], { type: 'application/pdf' });
 }
 
 export function informeABlob(informe: Informe): Promise<Blob> {

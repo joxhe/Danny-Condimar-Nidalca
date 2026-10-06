@@ -1229,3 +1229,19 @@ table.informe .apagado {
   margin-bottom: var(--e4);
   font-size: 14px;
 }
+
+/* Acciones sobre los pedidos marcados: papel, imprimir y eliminar. */
+.acciones-lote {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  margin-left: var(--e3);
+  flex-wrap: wrap;
+  vertical-align: middle;
+}
+
+.acciones-lote select {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 13px;
+}

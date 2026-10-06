@@ -6,6 +6,9 @@ interface Props {
   min?: number;
   max?: number;
   etiqueta?: string;
+  id?: string;
+  /** Al pulsar Enter. En el pedido devuelve el foco al buscador. */
+  onEnter?: () => void;
 }
 
 /**
@@ -18,7 +21,15 @@ interface Props {
  * Por eso el texto se lleva aparte del numero: adentro se guarda lo que el
  * usuario ve, y hacia afuera siempre sale un numero limpio.
  */
-export function CampoNumero({ valor, onCambiar, min = 0, max, etiqueta }: Props) {
+export function CampoNumero({
+  valor,
+  onCambiar,
+  min = 0,
+  max,
+  etiqueta,
+  id,
+  onEnter,
+}: Props) {
   const [texto, setTexto] = useState(() => String(valor));
 
   // Si el valor cambia desde afuera (al abrir un borrador, por ejemplo) el
@@ -55,6 +66,7 @@ export function CampoNumero({ valor, onCambiar, min = 0, max, etiqueta }: Props)
 
   return (
     <input
+      id={id}
       type="number"
       inputMode="numeric"
       min={min}
@@ -66,6 +78,12 @@ export function CampoNumero({ valor, onCambiar, min = 0, max, etiqueta }: Props)
       // Al salir, un campo vacio vuelve al minimo en vez de quedar en blanco.
       onBlur={() => setTexto(String(valor))}
       onFocus={(e) => e.currentTarget.select()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && onEnter) {
+          e.preventDefault();
+          onEnter();
+        }
+      }}
     />
   );
 }

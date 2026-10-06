@@ -25,7 +25,14 @@ interface AccionesBorrador {
   setFecha: (f: string) => void;
   setObsGenerales: (o: string) => void;
   setNumero: (n: string | number) => void;
-  agregarProducto: (p: Producto) => void;
+  /**
+   * Fija la identidad del pedido antes de guardarlo por primera vez, y la
+   * devuelve. Sin esto cada guardado generaba un id nuevo con el mismo numero:
+   * dos filas distintas en la hoja, las dos con el mismo No. de pedido.
+   */
+  asegurarId: () => string;
+  /** Agrega el articulo al principio y devuelve el id de su renglon. */
+  agregarProducto: (p: Producto) => string;
   actualizarItem: (lineId: string, patch: Partial<ItemPedido>) => void;
   quitarItem: (lineId: string) => void;
   limpiar: () => void;
@@ -59,13 +66,29 @@ export const usePedidoBorrador = create<EstadoBorrador & AccionesBorrador>()(
       setObsGenerales: (obsGenerales) => set({ obsGenerales }),
       setNumero: (numero) => set({ numero }),
 
-      agregarProducto: (p) =>
+      asegurarId: () => {
+        const actual = get().orderId;
+        if (actual) return actual;
+        const id = uid();
+        set({ orderId: id });
+        return id;
+      },
+
+      /*
+       * El ultimo agregado va arriba, pegado al buscador: es el que hay que
+       * completar con la cantidad. Al final quedaba debajo de todos los demas
+       * y habia que bajar a buscarlo en cada articulo.
+       */
+      agregarProducto: (p) => {
+        const lineId = uid();
         set((s) => ({
           items: [
+            { ...p, lineId, cantidad: 1, descuentoPct: 0, observaciones: '' },
             ...s.items,
-            { ...p, lineId: uid(), cantidad: 1, descuentoPct: 0, observaciones: '' },
           ],
-        })),
+        }));
+        return lineId;
+      },
 
       actualizarItem: (lineId, patch) =>
         set((s) => ({
