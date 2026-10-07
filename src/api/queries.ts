@@ -4,7 +4,8 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import type { Cliente, Linea, Pedido, Presupuesto, Producto } from '../domain/types';
+import { aplicarAjustes } from '../domain/ajustes';
+import type { Ajuste, Cliente, Linea, Pedido, Presupuesto, Producto } from '../domain/types';
 import * as api from './client';
 import {
   borrarPedidoLocal,
@@ -105,10 +106,14 @@ export function useGuardarPedido() {
       return pedido;
     },
     onSuccess: (pedido) => {
-      qc.setQueryData<Pedido[]>(keys.pedidos, (prev = []) => [
-        ...prev.filter((p) => p.id !== pedido.id),
-        pedido,
-      ]);
+      /*
+       * Solo si la lista ya se habia traido. Si no, crearla con este pedido
+       * la daba por recien leida: al abrir Pedidos se veia solo ese durante
+       * un minuto, sin consultar la hoja. Devolver undefined la deja intacta.
+       */
+      qc.setQueryData<Pedido[]>(keys.pedidos, (prev) =>
+        prev ? [...prev.filter((p) => p.id !== pedido.id), pedido] : prev,
+      );
     },
   });
 }
@@ -251,6 +256,32 @@ export function useGuardarPresupuestos() {
   return useMutation({
     mutationFn: (datos: Presupuesto[]) => api.guardarPresupuestos(datos),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.planeacion }),
+  });
+}
+
+/**
+ * Guarda los ajustes del Informe y los muestra de inmediato. Si la hoja los
+ * rechaza (por ejemplo, el script todavia no tiene la version que los
+ * entiende) la tabla vuelve a como estaba.
+ */
+export function useGuardarAjustes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (datos: Ajuste[]) => api.guardarAjustes(datos),
+
+    onMutate: async (datos) => {
+      await qc.cancelQueries({ queryKey: keys.planeacion });
+      const anterior = qc.getQueryData<api.Planeacion>(keys.planeacion);
+      qc.setQueryData<api.Planeacion>(keys.planeacion, (prev) =>
+        prev ? { ...prev, ajustes: aplicarAjustes(prev.ajustes, datos) } : prev,
+      );
+      return { anterior };
+    },
+
+    onError: (_e, _v, ctx) => {
+      if (ctx?.anterior) qc.setQueryData(keys.planeacion, ctx.anterior);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: keys.planeacion }),
   });
 }
 

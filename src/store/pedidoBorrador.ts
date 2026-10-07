@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import { computeTotales, noAntesDeHoy, todayISO, uid } from '../domain';
 import type {
   Cliente,
+  EstadoPedido,
   ItemPedido,
   Linea,
   Pedido,
@@ -13,6 +14,12 @@ interface EstadoBorrador {
   linea: Linea;
   orderId: string | null;
   numero: string | number | null;
+  /**
+   * Estado con el que estaba guardado el pedido que se abrio para editar.
+   * Null en un pedido nuevo. Un finalizado conserva su fecha y se guarda
+   * finalizado: editarlo no lo devuelve a borrador.
+   */
+  estadoOriginal: EstadoPedido | null;
   fecha: string;
   cliente: Cliente | null;
   items: ItemPedido[];
@@ -45,6 +52,7 @@ const INICIAL: EstadoBorrador = {
   linea: 'CONDIMAR',
   orderId: null,
   numero: null,
+  estadoOriginal: null,
   fecha: todayISO(),
   cliente: null,
   items: [],
@@ -107,8 +115,10 @@ export const usePedidoBorrador = create<EstadoBorrador & AccionesBorrador>()(
           linea: pedido.linea,
           orderId: pedido.id,
           numero: pedido.numero,
+          estadoOriginal: pedido.estado,
           // Un borrador de ayer se despacha hoy: la fecha se adelanta sola.
-          fecha: noAntesDeHoy(pedido.fecha),
+          // Un finalizado ya se entrego con su fecha y la conserva.
+          fecha: pedido.estado === 'finalizado' ? pedido.fecha : noAntesDeHoy(pedido.fecha),
           cliente: pedido.cliente,
           items: pedido.items.map((it) => ({ ...it, lineId: uid() })),
           obsGenerales: pedido.obsGenerales ?? '',

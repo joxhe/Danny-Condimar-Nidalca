@@ -1102,6 +1102,21 @@ table.informe .apagado {
   color: var(--tinta-suave);
 }
 
+/* Modo Ajustar: los campos no deben encogerse hasta no leerse. */
+table.informe input {
+  min-width: 96px;
+  padding: 6px 8px;
+  font-size: 14px;
+}
+
+/* El acumulado anterior incluye ventas escritas a mano. */
+.marca-ajuste {
+  margin-left: 2px;
+  color: var(--alerta);
+  font-weight: 700;
+  cursor: help;
+}
+
 /* Los totales cortan la lista: llevan línea arriba y fondo propio. */
 .fila-total td {
   background: var(--superficie-2);
@@ -1168,6 +1183,151 @@ table.informe .apagado {
   gap: 6px;
 }
 
+/* --- Periodo del Informe ------------------------------------------------ */
+
+/* Hace de titulo y a la vez abre el calendario: se ve como un campo. */
+.selector-periodo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--e2);
+  max-width: 100%;
+  padding: 8px 12px;
+  background: var(--superficie);
+  color: var(--tinta);
+  border: 1.5px solid var(--borde-fuerte);
+  font-size: 15.5px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.selector-periodo svg {
+  flex-shrink: 0;
+  color: var(--acento);
+}
+
+.selector-periodo:hover:not(:disabled),
+.selector-periodo[aria-expanded='true'] {
+  border-color: var(--acento);
+  background: var(--acento-suave);
+}
+
+.selector-periodo-flecha {
+  color: var(--tinta-suave);
+  font-size: 12px;
+  transition: transform 0.15s;
+}
+
+.selector-periodo[aria-expanded='true'] .selector-periodo-flecha {
+  transform: rotate(180deg);
+}
+
+.calendario {
+  width: 320px;
+  max-width: 100%;
+  margin-top: var(--e3);
+  padding: var(--e3);
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  box-shadow: var(--sombra-2);
+}
+
+.calendario-mes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--e2);
+  font-weight: 700;
+}
+
+/* "septiembre 2026" -> "Septiembre 2026". */
+.calendario-mes span {
+  text-transform: capitalize;
+}
+
+.calendario-mes button {
+  padding: 2px 12px;
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+/* Sin espacio entre columnas: el intervalo se pinta como una franja continua. */
+.calendario-rejilla {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px 0;
+}
+
+.calendario-cabecera {
+  padding-bottom: var(--e1);
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--tinta-suave);
+}
+
+.calendario-dia {
+  position: relative;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: var(--radio-sm);
+  background: transparent;
+  color: var(--tinta);
+  font-family: var(--fuente-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.calendario-dia:hover:not(.en-rango) {
+  background: var(--superficie-2);
+}
+
+/* Domingo: casi no hay ventas, pero se puede elegir igual. */
+.calendario-dia.domingo {
+  color: var(--tinta-suave);
+}
+
+.calendario-dia.hoy {
+  box-shadow: inset 0 0 0 1.5px var(--borde-fuerte);
+}
+
+.calendario-dia.en-rango {
+  border-radius: 0;
+  background: var(--acento-suave);
+  color: var(--acento);
+  font-weight: 700;
+}
+
+.calendario-dia.extremo {
+  border-radius: var(--radio-sm);
+  background: var(--acento);
+  color: #fff;
+}
+
+/* Punto bajo el numero: ese dia hubo pedidos finalizados. */
+.calendario-punto {
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+  background: var(--acento);
+}
+
+.calendario-dia.extremo .calendario-punto {
+  background: #fff;
+}
+
+.calendario-ayuda {
+  margin: var(--e2) 0 0;
+  font-size: 12.5px;
+  color: var(--tinta-media);
+  line-height: 1.45;
+}
+
 /* --- Selección múltiple ------------------------------------------------- */
 
 .casilla {
@@ -1211,6 +1371,23 @@ table.informe .apagado {
   background: var(--acento-suave);
   border-color: var(--acento);
   border-style: solid;
+}
+
+/* Debajo de un precio cambiado a mano: el del catálogo, y volver a él. */
+.precio-lista {
+  display: block;
+  margin-top: 3px;
+  padding: 0;
+  background: none;
+  color: var(--alerta);
+  font-family: var(--fuente-num);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.precio-lista:hover {
+  text-decoration: underline;
 }
 
 .ayuda {

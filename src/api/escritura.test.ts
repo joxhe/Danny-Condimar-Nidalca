@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { guardarClientes, guardarProductos, setApiUrl } from './client';
-import type { Cliente, ProductoCondimar, ProductoNidalca } from '../domain/types';
+import { guardarAjustes, guardarClientes, guardarProductos, setApiUrl } from './client';
+import type { Ajuste, Cliente, ProductoCondimar, ProductoNidalca } from '../domain/types';
 
 /**
  * Lo que se le manda a la hoja.
@@ -154,6 +154,40 @@ describe('guardarProductos', () => {
       [
         'activo', 'categoria', 'embalaje', 'icui_pct', 'id', 'iva_pct',
         'linea', 'precio', 'producto', 'referencia_id',
+      ].sort(),
+    );
+  });
+});
+
+describe('guardarAjustes', () => {
+  const DEVOLUCION: Ajuste = {
+    id: 'devolucion|2026-09-14_2026-09-19|CONDIMAR|50X50',
+    tipo: 'devolucion',
+    anio: 2026,
+    mes: 9,
+    desde: '2026-09-14',
+    hasta: '2026-09-19',
+    linea: 'CONDIMAR',
+    referenciaId: '50X50',
+    valor: 2,
+  };
+
+  it('usa referencia_id, como el resto de las pestañas', async () => {
+    const leer = espiarEnvio();
+    await guardarAjustes([DEVOLUCION]);
+    const { cuerpo, fila } = leer();
+    expect(cuerpo.accion).toBe('guardarAjustes');
+    expect(fila.referencia_id).toBe('50X50');
+    expect(fila).not.toHaveProperty('referenciaId');
+  });
+
+  it('manda exactamente las columnas de la pestaña ajustes', async () => {
+    const leer = espiarEnvio();
+    await guardarAjustes([DEVOLUCION]);
+    expect(Object.keys(leer().fila).sort()).toEqual(
+      [
+        'anio', 'desde', 'hasta', 'id', 'linea', 'mes', 'referencia_id',
+        'tipo', 'updated_at', 'valor',
       ].sort(),
     );
   });

@@ -1,22 +1,24 @@
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument, degrees, rgb } from 'pdf-lib';
 import { CARTA } from './formatos';
 
 /**
  * Imposicion: dos medias cartas por hoja carta.
  *
- * Toma un PDF de paginas media carta horizontal (612 x 396) y arma otro de
- * hojas carta vertical (612 x 792), con una media arriba y otra abajo y una
- * linea punteada para cortar.
+ * Para cuando se imprime en hojas carta enteras en vez de papel ya cortado.
+ * Toma un PDF de medias cartas verticales (396 x 612) y arma otro de hojas
+ * carta vertical (612 x 792): una media arriba, otra abajo, cada una girada
+ * 90 grados para caber en su mitad, y una linea punteada para cortar. Al
+ * cortar quedan dos tiras de media carta vertical, igual que el papel cortado.
  *
  * Por que se hace aqui y no en el dialogo de impresion: la opcion "paginas por
  * hoja" del navegador escala y rota segun su propio criterio, distinto en cada
- * navegador y en cada celular. Aqui el resultado ya es una hoja carta con las
- * dos mitades al 100 %, y basta imprimirla tal cual.
+ * navegador y en cada celular. Aqui la hoja ya sale armada y vertical, que es
+ * como entra el papel carta a la impresora: no hay nada que rotar al imprimir.
  *
  * Las paginas se acomodan en orden, sin dejar huecos: si un pedido ocupa dos
  * medias hojas puede quedar repartido entre la mitad de abajo de una hoja y la
- * de arriba de la siguiente. Cada media lleva su "Pag. 1/2" en el pie, asi que al
- * cortarlas se reconocen igual.
+ * de arriba de la siguiente. Cada media lleva su "Pag. 1/2" en el pie, asi que
+ * al cortarlas se reconocen igual.
  */
 
 const MITAD = CARTA[1] / 2;
@@ -60,20 +62,40 @@ type Hoja = ReturnType<PDFDocument['addPage']>;
 type Media = Awaited<ReturnType<PDFDocument['embedPdf']>>[number];
 
 /**
- * Pone una media hoja en su mitad, sin deformarla.
+ * Pone una media hoja en su mitad de la carta, sin deformarla.
  *
- * Las del sistema miden exactamente media carta y entran al 100 %. Si alguna
- * llegara con otro tamaño se reduce lo justo para caber, centrada.
+ * Cada mitad es horizontal (612 x 396). Una media carta vertical (396 x 612)
+ * entra exacta si se gira 90 grados; una horizontal entraria derecha. Si
+ * alguna llegara con otro tamaño se reduce lo justo para caber, centrada.
  */
-function colocar(hoja: Hoja, media: Media, y: number) {
-  const escala = Math.min(1, CARTA[0] / media.width, MITAD / media.height);
-  const ancho = media.width * escala;
-  const alto = media.height * escala;
+function colocar(hoja: Hoja, media: Media, yInferior: number) {
+  const vertical = media.height > media.width;
 
+  // Medidas que ocupa en la hoja, ya girada si hace falta.
+  const anchoEnHoja = vertical ? media.height : media.width;
+  const altoEnHoja = vertical ? media.width : media.height;
+
+  const escala = Math.min(1, CARTA[0] / anchoEnHoja, MITAD / altoEnHoja);
+  const ancho = anchoEnHoja * escala;
+  const alto = altoEnHoja * escala;
+  const x = (CARTA[0] - ancho) / 2;
+  const y = yInferior + (MITAD - alto) / 2;
+
+  if (!vertical) {
+    hoja.drawPage(media, { x, y, width: ancho, height: alto });
+    return;
+  }
+
+  /*
+   * Girada 90 grados antihorario sobre su esquina de origen, la pagina se
+   * extiende hacia la IZQUIERDA de ese punto. Por eso el origen va en el borde
+   * derecho de su lugar. El encabezado del pedido queda hacia la izquierda.
+   */
   hoja.drawPage(media, {
-    x: (CARTA[0] - ancho) / 2,
-    y: y + (MITAD - alto) / 2,
-    width: ancho,
-    height: alto,
+    x: x + ancho,
+    y,
+    xScale: escala,
+    yScale: escala,
+    rotate: degrees(90),
   });
 }

@@ -3,6 +3,7 @@ import { useEliminarPedido, useEliminarPedidos, usePedidos } from '../../api/que
 import { ListadoEsqueleto } from '../../components/Esqueleto';
 import {
   IconoBorrar,
+  IconoCompartir,
   IconoEditar,
   IconoImprimir,
   IconoOjo,
@@ -10,6 +11,7 @@ import {
 } from '../../components/Iconos';
 import { COP, fmtDate } from '../../domain';
 import type { EstadoPedido, Linea, Pedido } from '../../domain/types';
+import { compartirPdf, guardarPdf, nombrePedido, puedeCompartir } from '../../pdf/entrega';
 import { confirmar } from '../../store/dialogo';
 import { usePedidoBorrador } from '../../store/pedidoBorrador';
 import { toast } from '../../store/toast';
@@ -53,6 +55,8 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
   const [imprimiendo, setImprimiendo] = useState(false);
   const cargarDesde = usePedidoBorrador((s) => s.cargarDesde);
   const tieneContenido = usePedidoBorrador((s) => s.tieneContenido);
+  // En PC no se ofrece: la hoja de compartir de escritorio no sirve para esto.
+  const [compartible] = useState(puedeCompartir);
 
   const [estado, setEstado] = useState<FiltroEstado>('todos');
   const [linea, setLinea] = useState<FiltroLinea>('todas');
@@ -95,13 +99,23 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
     }
   }
 
-  async function reimprimir(p: Pedido) {
+  /** Pregunta en que carpeta guardarlo, en PC y en celular. */
+  async function descargarPdf(p: Pedido) {
     try {
-      const pdf = await cargarPdf();
-      const blob = await pdf.pedidoABlob(p);
-      await pdf.entregar(blob, pdf.nombrePedido(p));
+      const r = await guardarPdf(nombrePedido(p), async () =>
+        (await cargarPdf()).pedidoABlob(p),
+      );
+      if (r === 'guardado') toast.ok(`Pedido No. ${p.numero} guardado en PDF.`);
     } catch (e) {
       toast.error('No se pudo generar el PDF: ' + (e as Error).message);
+    }
+  }
+
+  async function compartir(p: Pedido) {
+    try {
+      await compartirPdf(nombrePedido(p), async () => (await cargarPdf()).pedidoABlob(p));
+    } catch (e) {
+      toast.error('No se pudo compartir: ' + (e as Error).message);
     }
   }
 
@@ -272,7 +286,7 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
                 <th style={{ width: 110 }}>Fecha</th>
                 <th style={{ width: 110 }}>Estado</th>
                 <th style={{ width: 120 }}>Total</th>
-                <th style={{ width: 280 }} />
+                <th style={{ width: 300 }} />
               </tr>
             </thead>
             <tbody>
@@ -305,17 +319,16 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
                   </td>
                   <td>
                     <div className="acciones-fila">
-                      {p.estado === 'borrador' && (
-                        <button
-                          type="button"
-                          className="btn-icono"
-                          onClick={() => editar(p)}
-                          title="Editar este borrador"
-                        >
-                          <IconoEditar />
-                          Editar
-                        </button>
-                      )}
+                      {/* Tambien los finalizados: se corrigen y se guardan de nuevo. */}
+                      <button
+                        type="button"
+                        className="btn-icono"
+                        onClick={() => editar(p)}
+                        title={`Editar el pedido No. ${p.numero}`}
+                      >
+                        <IconoEditar />
+                        Editar
+                      </button>
                       <button
                         type="button"
                         className="btn-icono"
@@ -328,12 +341,23 @@ export function PedidosTab({ onEditar }: { onEditar: () => void }) {
                       <button
                         type="button"
                         className="btn-icono"
-                        onClick={() => reimprimir(p)}
-                        title={`Descargar o compartir el pedido No. ${p.numero}`}
+                        onClick={() => descargarPdf(p)}
+                        title={`Descargar el pedido No. ${p.numero} en PDF`}
                       >
                         <IconoPdf />
                         PDF
                       </button>
+                      {compartible && (
+                        <button
+                          type="button"
+                          className="btn-icono"
+                          onClick={() => compartir(p)}
+                          title={`Compartir el pedido No. ${p.numero}`}
+                        >
+                          <IconoCompartir />
+                          Compartir
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="btn-icono peligro"

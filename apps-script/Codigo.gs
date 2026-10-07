@@ -33,6 +33,8 @@
  * sin abrir el editor. Si el `ping` responde una version distinta a la de
  * aqui, falta republicar.
  *
+ *   1.8.0  pestaña `ajustes` (acumulado a mano y devoluciones del Informe),
+ *          que se crea sola; el Informe escribe la columna `devoluciones`
  *   1.7.0  upsert mezcla con la fila existente: no borra columnas ausentes
  *   1.6.0  eliminarCliente, solo para clientes sin pedidos
  *   1.5.0  borrado por bloques y eliminarPedidos para varios a la vez
@@ -42,7 +44,7 @@
  *   1.1.0  pedidos con el cliente unido y la fecha sin hora
  *   1.0.0  version inicial
  */
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 
 const HOJA = {
   parametros: 'parametros',
@@ -55,7 +57,22 @@ const HOJA = {
   informe: 'informe',
   pedidos: 'pedidos',
   items: 'pedido_items',
+  ajustes: 'ajustes',
 };
+
+/** Cabecera de la pestaña `ajustes`, que el script crea si no existe. */
+const COLUMNAS_AJUSTES = [
+  'id',
+  'tipo',
+  'anio',
+  'mes',
+  'desde',
+  'hasta',
+  'linea',
+  'referencia_id',
+  'valor',
+  'updated_at',
+];
 
 // ==========================================================================
 // Entrada
@@ -111,6 +128,8 @@ function doPost(e) {
         return { guardados: upsert(HOJA.cortes, p.datos) };
       case 'guardarInforme':
         return guardarInforme(p.corte_id, p.filas);
+      case 'guardarAjustes':
+        return guardarAjustes(p.datos);
       default:
         throw new Error('Accion desconocida: "' + p.accion + '"');
     }
@@ -347,7 +366,18 @@ function planeacion() {
   return {
     cortes: leer(HOJA.cortes),
     presupuestos: leer(HOJA.presupuestos),
+    ajustes: leerAjustes(),
   };
+}
+
+/** Los ajustes, con las fechas como texto. Sin la pestaña todavia, ninguno. */
+function leerAjustes() {
+  if (!SpreadsheetApp.getActiveSpreadsheet().getSheetByName(HOJA.ajustes)) return [];
+  return leer(HOJA.ajustes).map(function (a) {
+    a.desde = soloFecha(a.desde);
+    a.hasta = soloFecha(a.hasta);
+    return a;
+  });
 }
 
 /**
@@ -563,6 +593,8 @@ function guardarInforme(corteId, filas) {
   const candado = LockService.getScriptLock();
   candado.waitLock(20000);
   try {
+    // Columna nueva desde la 1.8.0: si la pestaña no la tiene, se agrega.
+    asegurarColumnas(HOJA.informe, ['devoluciones']);
     borrarDonde(HOJA.informe, 'corte_id', corteId);
     // Tambien las filas sin corte: son la plantilla que quedo de la migracion
     // y ensucian la hoja porque ningun corte las reclama.
@@ -580,6 +612,62 @@ function guardarInforme(corteId, filas) {
     return { ok: true, corte_id: corteId, filas: (filas || []).length };
   } finally {
     candado.releaseLock();
+  }
+}
+
+/**
+ * Ajustes del Informe hechos a mano: acumulado que no esta en la app y
+ * devoluciones. El calculo los usa; aca solo se guardan.
+ *
+ * Se escriben por id. Uno en cero se borra en vez de quedar como fila vacia.
+ */
+function guardarAjustes(datos) {
+  const lista = datos || [];
+  if (!lista.length) return { ok: true, guardados: 0, borrados: 0 };
+
+  const candado = LockService.getScriptLock();
+  candado.waitLock(20000);
+  try {
+    hojaAjustes();
+    const ceros = lista
+      .filter(function (a) {
+        return !Number(a.valor);
+      })
+      .map(function (a) {
+        return a.id;
+      });
+    const conValor = lista.filter(function (a) {
+      return !!Number(a.valor);
+    });
+
+    const borrados = ceros.length ? borrarDondeAlguno(HOJA.ajustes, 'id', ceros) : 0;
+    const guardados = upsert(HOJA.ajustes, conValor);
+    return { ok: true, guardados: guardados, borrados: borrados };
+  } finally {
+    candado.releaseLock();
+  }
+}
+
+/** La pestaña `ajustes`. La primera vez la crea, con su cabecera. */
+function hojaAjustes() {
+  const libro = SpreadsheetApp.getActiveSpreadsheet();
+  let h = libro.getSheetByName(HOJA.ajustes);
+  if (!h) {
+    h = libro.insertSheet(HOJA.ajustes);
+    h.getRange(1, 1, 1, COLUMNAS_AJUSTES.length).setValues([COLUMNAS_AJUSTES]);
+    h.setFrozenRows(1);
+  }
+  return h;
+}
+
+/** Agrega al final de la cabecera las columnas que falten. No mueve las demas. */
+function asegurarColumnas(nombre, columnas) {
+  const actuales = cabecera(nombre);
+  const faltan = columnas.filter(function (c) {
+    return actuales.indexOf(c) < 0;
+  });
+  if (faltan.length) {
+    hoja(nombre).getRange(1, actuales.length + 1, 1, faltan.length).setValues([faltan]);
   }
 }
 
@@ -624,6 +712,7 @@ function probar() {
     c.clientesCondimar.length, c.clientesNidalca.length);
   Logger.log('cortes       : %s', p.cortes.length);
   Logger.log('presupuestos : %s', p.presupuestos.length);
+  Logger.log('ajustes      : %s', p.ajustes.length);
   Logger.log('informe      : %s filas', leer(HOJA.informe).length);
   Logger.log('pedidos      : %s', pedidosConItems().length);
   Logger.log('siguiente numero Condimar: %s', siguienteNumero('CONDIMAR'));

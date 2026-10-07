@@ -1,16 +1,17 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { COP, EMPRESAS, calcularLinea, fmtDate, precioUnit } from '../domain';
 import type { Pedido } from '../domain/types';
-import { MEDIA_CARTA_HORIZONTAL } from './formatos';
+import { MEDIA_CARTA } from './formatos';
 import { LOGOS } from './logos';
 
 /**
- * Pedido en media carta HORIZONTAL: 8.5 x 5.5 pulgadas = 612 x 396 puntos.
+ * Pedido en media carta VERTICAL: 5,5 x 8,5 pulgadas = 396 x 612 puntos.
  *
- * Es exactamente la mitad de una hoja carta, asi que dos pedidos caben en una
- * hoja y se cortan por la mitad (ver `imponer.ts`). La orientacion horizontal
- * es a proposito: un pedido corto llena la media hoja, en vez de dejar la
- * mitad de abajo en blanco como pasaba con la media carta vertical.
+ * Es la forma de la media hoja tal como entra a la impresora, por el lado
+ * angosto. Una primera version fue horizontal para aprovechar mejor el alto
+ * con pedidos cortos, pero la impresora no la roto y corto toda la columna
+ * izquierda: logo, cliente y nombres de articulo. Pagina igual al papel es lo
+ * unico que no depende de como interprete cada driver la orientacion.
  *
  * Se usa Courier, una de las 14 fuentes estandar incrustadas en todo lector de
  * PDF: no hay descarga remota que pueda fallar ni que haya que esperar.
@@ -28,8 +29,8 @@ const MARGEN = 22;
 
 const s = StyleSheet.create({
   page: {
-    paddingTop: 20,
-    paddingBottom: 32,
+    paddingTop: 22,
+    paddingBottom: 36,
     paddingHorizontal: MARGEN,
     fontFamily: 'Courier',
     fontSize: 8,
@@ -41,25 +42,16 @@ const s = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: 1.5,
     borderBottomColor: '#111',
-    paddingBottom: 4,
-    marginBottom: 5,
+    paddingBottom: 5,
+    marginBottom: 6,
   },
-  bloqueMarca: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  bloqueMarca: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   marca: { fontFamily: 'Courier-Bold', fontSize: 11 },
   chico: { fontSize: 6.8, lineHeight: 1.35 },
   derecha: { textAlign: 'right' },
   numero: { fontFamily: 'Courier-Bold', fontSize: 10 },
 
-  // Datos del cliente en dos columnas: en horizontal sobra ancho y falta alto.
-  cliente: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 5,
-    fontSize: 7.5,
-    lineHeight: 1.45,
-  },
-  clienteIzq: { flex: 1.4 },
-  clienteDer: { flex: 1 },
+  cliente: { marginBottom: 6, fontSize: 7.5, lineHeight: 1.5 },
   etiqueta: { fontFamily: 'Courier-Bold' },
 
   cabeceraTabla: {
@@ -74,40 +66,17 @@ const s = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: '#999',
     borderBottomStyle: 'dotted',
-    paddingVertical: 2.2,
+    paddingVertical: 2.5,
   },
-  colArticulo: { flex: 1, paddingRight: 6 },
-  colCant: { width: 44, textAlign: 'right' },
-  colPrecio: { width: 70, textAlign: 'right' },
-  colDesc: { width: 44, textAlign: 'right' },
-  colSubtotal: { width: 78, textAlign: 'right' },
+  colArticulo: { flex: 1, paddingRight: 4 },
+  colCant: { width: 30, textAlign: 'right' },
+  colPrecio: { width: 54, textAlign: 'right' },
+  colDesc: { width: 34, textAlign: 'right' },
+  colSubtotal: { width: 62, textAlign: 'right' },
   observacion: { fontSize: 6.5, color: '#444' },
 
-  /*
-   * Cierre del pedido: firmas a la izquierda, totales a la derecha, en la
-   * misma franja. Apilados uno sobre otro gastaban unos 40 puntos de alto, que
-   * en una media hoja horizontal son tres renglones de articulos.
-   */
-  cierre: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: 7,
-    gap: 16,
-  },
-  izquierda: { flex: 1 },
-  observaciones: { fontSize: 7, lineHeight: 1.4, marginBottom: 14 },
-  firmas: { flexDirection: 'row', gap: 18 },
-  firma: {
-    flex: 1,
-    borderTopWidth: 0.5,
-    borderTopColor: '#111',
-    paddingTop: 2,
-    fontSize: 7,
-  },
-
-  totales: { width: 220 },
-  filaTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 1.2 },
+  totales: { marginTop: 8, alignSelf: 'flex-end', width: 214 },
+  filaTotal: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 1.4 },
   filaSubtotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -115,7 +84,7 @@ const s = StyleSheet.create({
     borderTopColor: '#111',
     borderBottomWidth: 0.5,
     borderBottomColor: '#111',
-    paddingVertical: 2,
+    paddingVertical: 2.2,
     marginVertical: 1.5,
     fontFamily: 'Courier-Bold',
   },
@@ -130,9 +99,19 @@ const s = StyleSheet.create({
     fontSize: 9,
   },
 
+  observaciones: { marginTop: 8, fontSize: 7, lineHeight: 1.4 },
+  firmas: { flexDirection: 'row', gap: 22, marginTop: 30 },
+  firma: {
+    flex: 1,
+    borderTopWidth: 0.5,
+    borderTopColor: '#111',
+    paddingTop: 2,
+    fontSize: 7,
+  },
+
   pie: {
     position: 'absolute',
-    bottom: 16,
+    bottom: 18,
     left: MARGEN,
     right: MARGEN,
     flexDirection: 'row',
@@ -152,7 +131,7 @@ export function PaginaPedido({ pedido }: { pedido: Pedido }) {
   const c = pedido.cliente;
 
   return (
-    <Page size={MEDIA_CARTA_HORIZONTAL} style={s.page}>
+    <Page size={MEDIA_CARTA} style={s.page}>
       {/* fixed: encabezado, cliente y cabecera de tabla en cada media hoja */}
       <View fixed>
         <View style={s.encabezado}>
@@ -160,8 +139,9 @@ export function PaginaPedido({ pedido }: { pedido: Pedido }) {
             <Image src={logo.src} style={{ width: logo.ancho, height: logo.alto }} />
             <View>
               <Text style={s.marca}>{emp.nombre}</Text>
+              <Text style={s.chico}>NIT {emp.nit}</Text>
               <Text style={s.chico}>
-                NIT {emp.nit} · {emp.direccion} · Tel: {emp.telefono}
+                {emp.direccion} · Tel: {emp.telefono}
               </Text>
             </View>
           </View>
@@ -172,28 +152,22 @@ export function PaginaPedido({ pedido }: { pedido: Pedido }) {
         </View>
 
         <View style={s.cliente}>
-          <View style={s.clienteIzq}>
-            <Text>
-              <Text style={s.etiqueta}>Cliente: </Text>
-              {c?.razon_social}
-            </Text>
-            <Text>
-              <Text style={s.etiqueta}>Direccion: </Text>
-              {c?.direccion}
-            </Text>
-          </View>
-          <View style={s.clienteDer}>
-            <Text>
-              <Text style={s.etiqueta}>NIT/CC: </Text>
-              {c?.nit}
-              <Text style={s.etiqueta}>{'   Tel: '}</Text>
-              {c?.telefono}
-            </Text>
-            <Text>
-              <Text style={s.etiqueta}>Ciudad: </Text>
-              {c?.ciudad}
-            </Text>
-          </View>
+          <Text>
+            <Text style={s.etiqueta}>Cliente: </Text>
+            {c?.razon_social}
+          </Text>
+          <Text>
+            <Text style={s.etiqueta}>NIT/CC: </Text>
+            {c?.nit}
+            <Text style={s.etiqueta}>{'   Tel: '}</Text>
+            {c?.telefono}
+          </Text>
+          <Text>
+            <Text style={s.etiqueta}>Direccion: </Text>
+            {c?.direccion}
+            <Text style={s.etiqueta}>{'   Ciudad: '}</Text>
+            {c?.ciudad}
+          </Text>
         </View>
 
         <View style={s.cabeceraTabla}>
@@ -224,20 +198,7 @@ export function PaginaPedido({ pedido }: { pedido: Pedido }) {
       })}
 
       {/* Sin fixed: fluye detras del ultimo renglon, o sea en la ultima media hoja */}
-      <View style={s.cierre} wrap={false}>
-        <View style={s.izquierda}>
-          {!!pedido.obsGenerales && (
-            <Text style={s.observaciones}>
-              <Text style={s.etiqueta}>Observaciones: </Text>
-              {pedido.obsGenerales}
-            </Text>
-          )}
-          <View style={s.firmas}>
-            <Text style={s.firma}>Firma vendedor</Text>
-            <Text style={s.firma}>Firma cliente</Text>
-          </View>
-        </View>
-
+      <View wrap={false}>
         <View style={s.totales}>
           <View style={s.filaTotal}>
             <Text>Valor antes de descuento</Text>
@@ -264,6 +225,18 @@ export function PaginaPedido({ pedido }: { pedido: Pedido }) {
             <Text>TOTAL A CANCELAR</Text>
             <Text>{COP(t.total)}</Text>
           </View>
+        </View>
+
+        {!!pedido.obsGenerales && (
+          <Text style={s.observaciones}>
+            <Text style={s.etiqueta}>Observaciones: </Text>
+            {pedido.obsGenerales}
+          </Text>
+        )}
+
+        <View style={s.firmas}>
+          <Text style={s.firma}>Firma vendedor</Text>
+          <Text style={s.firma}>Firma cliente</Text>
         </View>
       </View>
 
@@ -303,7 +276,8 @@ export function PedidoPDF({ pedido }: { pedido: Pedido }) {
 
 /**
  * Varios pedidos en un mismo documento, cada uno empezando en su propia media
- * hoja. Es la entrada de la imposicion: despues se acomodan de a dos por carta.
+ * hoja. Para papel ya cortado se imprime tal cual; para hojas carta enteras se
+ * acomoda despues de a dos por hoja (ver `imponer.ts`).
  */
 export function PedidosPDF({ pedidos }: { pedidos: Pedido[] }) {
   return (

@@ -26,7 +26,7 @@ export function Dialogo() {
     if (!d) return;
     // Escape cierra el dialogo por su cuenta: hay que enterarse para resolver
     // la promesa, o quien esta esperando se queda colgado para siempre.
-    const alCerrar = () => useDialogo.getState().responder(false);
+    const alCerrar = () => useDialogo.getState().responder('cancelar');
     d.addEventListener('cancel', alCerrar);
     return () => d.removeEventListener('cancel', alCerrar);
   }, []);
@@ -38,7 +38,7 @@ export function Dialogo() {
       aria-labelledby="dialogo-titulo"
       onClick={(e) => {
         // Clic en el fondo: el target es el propio <dialog>, no su contenido.
-        if (e.target === ref.current) responder(false);
+        if (e.target === ref.current) responder('cancelar');
       }}
     >
       {actual && (
@@ -57,13 +57,22 @@ export function Dialogo() {
           </div>
 
           <div className="dialogo-acciones">
-            <button type="button" className="btn-fantasma" onClick={() => responder(false)}>
+            <button type="button" className="btn-fantasma" onClick={() => responder('cancelar')}>
               {actual.cancelar ?? 'Cancelar'}
             </button>
+            {actual.alternativa && (
+              <button
+                type="button"
+                className="btn-secundario"
+                onClick={() => responder('alternativa')}
+              >
+                {actual.alternativa}
+              </button>
+            )}
             <button
               type="button"
               className={actual.peligro ? 'btn-destructivo' : 'btn-primario'}
-              onClick={() => responder(true)}
+              onClick={() => responder('confirmar')}
               autoFocus
             >
               {actual.confirmar ?? 'Continuar'}

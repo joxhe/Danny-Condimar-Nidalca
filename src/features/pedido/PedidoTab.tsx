@@ -12,8 +12,9 @@ import {
   todayISO,
   unidadesACajas,
 } from '../../domain';
-import type { Cliente, ItemPedido, Producto } from '../../domain/types';
-import { confirmar } from '../../store/dialogo';
+import type { Cliente, ItemPedido, Pedido, Producto } from '../../domain/types';
+import { compartirPdf, guardarPdf, nombrePedido, puedeCompartir } from '../../pdf/entrega';
+import { confirmar, preguntar } from '../../store/dialogo';
 import { usePedidoBorrador } from '../../store/pedidoBorrador';
 import { toast } from '../../store/toast';
 
@@ -65,6 +66,44 @@ function AgregarOtro() {
   );
 }
 
+/**
+ * Despues de finalizar: el pedido ya quedo guardado y el formulario limpio.
+ * Aca solo se ofrece el PDF.
+ *
+ * Se pregunta en un dialogo y no se descarga de una vez porque el selector de
+ * carpeta solo se puede abrir justo despues de un toque, y guardar en la hoja
+ * tarda mas que eso. El toque en "Descargar PDF" es el que lo habilita.
+ */
+async function ofrecerPdf(pedido: Pedido, hecho: string) {
+  const compartir = puedeCompartir();
+  const r = await preguntar({
+    titulo: `Pedido No. ${pedido.numero} ${hecho}`,
+    mensaje: compartir
+      ? 'Quedó guardado. ¿Quieres descargar el PDF o compartirlo?'
+      : 'Quedó guardado. ¿Quieres descargar el PDF?',
+    confirmar: 'Descargar PDF',
+    alternativa: compartir ? 'Compartir' : undefined,
+    cancelar: 'Ahora no',
+  });
+  if (r === 'cancelar') return;
+
+  const generar = async () => (await cargarPdf()).pedidoABlob(pedido);
+  const nombre = nombrePedido(pedido);
+  try {
+    if (r === 'alternativa') {
+      await compartirPdf(nombre, generar);
+    } else if ((await guardarPdf(nombre, generar)) === 'guardado') {
+      toast.ok('PDF guardado.');
+    }
+  } catch (e) {
+    toast.error(
+      'El pedido quedó guardado, pero el PDF falló: ' +
+        (e as Error).message +
+        '. Puedes descargarlo desde Pedidos.',
+    );
+  }
+}
+
 export function PedidoTab() {
   const { data: catalogos, isLoading, offline } = useCatalogos();
   const guardar = useGuardarPedido();
@@ -76,6 +115,9 @@ export function PedidoTab() {
 
   const clientes = catalogos.clientes[b.linea];
   const productos = catalogos.productos[b.linea];
+
+  /** Se abrio desde Pedidos un pedido ya finalizado para corregirlo. */
+  const editandoFinalizado = b.estadoOriginal === 'finalizado';
 
   async function asegurarNumero(): Promise<string | number> {
     // Primero la identidad: el numero y el id viajan juntos. Si el id no se
@@ -96,8 +138,9 @@ export function PedidoTab() {
       toast.error('Agregue al menos un artículo.');
       return false;
     }
-    // El `min` del campo guia, pero no impide escribir la fecha a mano.
-    if (fechaEsPasada(b.fecha)) {
+    // El `min` del campo guia, pero no impide escribir la fecha a mano. Un
+    // pedido finalizado que se corrige conserva la fecha con que se entrego.
+    if (!editandoFinalizado && fechaEsPasada(b.fecha)) {
       toast.error('La fecha del pedido no puede ser anterior a hoy.');
       return false;
     }
@@ -116,29 +159,32 @@ export function PedidoTab() {
     }
   }
 
+  /**
+   * Guarda el pedido como finalizado y deja el formulario listo para el
+   * siguiente. Se limpia apenas se guarda en la hoja, sin esperar al PDF: si
+   * el PDF falla o se cancela, el pedido ya esta a salvo y se puede volver a
+   * descargar desde Pedidos.
+   */
   async function finalizar() {
     if (!validar()) return;
+    const hecho = editandoFinalizado ? 'actualizado' : 'finalizado';
+    let pedido: Pedido;
+
     setGenerando(true);
     try {
       const numero = await asegurarNumero();
-      const pedido = b.construir('finalizado', numero);
+      pedido = b.construir('finalizado', numero);
       await guardar.mutateAsync(pedido);
-
-      const pdf = await cargarPdf();
-      const blob = await pdf.pedidoABlob(pedido);
-      const modo = await pdf.entregar(blob, pdf.nombrePedido(pedido));
-
-      toast.ok(
-        modo === 'compartido'
-          ? `Pedido No. ${numero} finalizado y compartido.`
-          : `Pedido No. ${numero} finalizado. PDF descargado.`,
-      );
-      b.limpiar();
     } catch (e) {
-      toast.error('No se pudo finalizar: ' + (e as Error).message);
+      toast.error('No se pudo guardar: ' + (e as Error).message);
+      return;
     } finally {
       setGenerando(false);
     }
+
+    b.limpiar();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    await ofrecerPdf(pedido, hecho);
   }
 
   async function vistaPrevia() {
@@ -156,15 +202,24 @@ export function PedidoTab() {
 
   async function descartar() {
     if (!b.tieneContenido()) return;
-    const seguir = await confirmar({
-      titulo: '¿Descartar el pedido?',
-      mensaje: 'Se pierden el cliente y los artículos cargados.',
-      confirmar: 'Descartar',
-      peligro: true,
-    });
+    const seguir = await confirmar(
+      editandoFinalizado
+        ? {
+            titulo: '¿Descartar los cambios?',
+            mensaje: `El pedido No. ${b.numero} queda como estaba guardado.`,
+            confirmar: 'Descartar cambios',
+            peligro: true,
+          }
+        : {
+            titulo: '¿Descartar el pedido?',
+            mensaje: 'Se pierden el cliente y los artículos cargados.',
+            confirmar: 'Descartar',
+            peligro: true,
+          },
+    );
     if (!seguir) return;
     b.limpiar();
-    toast.ok('Pedido descartado.');
+    toast.ok(editandoFinalizado ? 'Cambios descartados.' : 'Pedido descartado.');
   }
 
   if (isLoading) return <PedidoEsqueleto />;
@@ -182,7 +237,16 @@ export function PedidoTab() {
       <div className="tarjeta">
         <div className="pedido-cabecera">
           <div className="tarjeta-titulo" style={{ marginBottom: 0 }}>
-            {b.numero ? `Pedido No. ${b.numero}` : 'Pedido nuevo'}
+            {editandoFinalizado
+              ? `Editando pedido No. ${b.numero}`
+              : b.numero
+                ? `Pedido No. ${b.numero}`
+                : 'Pedido nuevo'}
+            {editandoFinalizado && (
+              <span className="pildora pildora-finalizado" style={{ marginLeft: 'var(--e2)' }}>
+                finalizado
+              </span>
+            )}
           </div>
           <div className="pedido-fecha">
             <label htmlFor="fecha">Fecha</label>
@@ -190,7 +254,9 @@ export function PedidoTab() {
               id="fecha"
               type="date"
               value={b.fecha}
-              min={todayISO()}
+              // Un pedido nuevo va de hoy en adelante; uno finalizado puede
+              // corregirse a cualquier fecha.
+              min={editandoFinalizado ? undefined : todayISO()}
               onChange={(e) => b.setFecha(e.target.value)}
             />
           </div>
@@ -226,7 +292,7 @@ export function PedidoTab() {
           }}
         />
 
-        <TablaItems />
+        <TablaItems productos={productos} />
         <AgregarOtro />
       </div>
 
@@ -247,7 +313,7 @@ export function PedidoTab() {
 
       <div className="acciones">
         <button type="button" className="btn-fantasma" onClick={descartar}>
-          Descartar
+          {editandoFinalizado ? 'Descartar cambios' : 'Descartar'}
         </button>
         <button
           type="button"
@@ -257,16 +323,19 @@ export function PedidoTab() {
         >
           Vista previa
         </button>
-        <button
-          type="button"
-          className="btn-secundario"
-          disabled={ocupado}
-          onClick={guardarBorrador}
-        >
-          {guardar.isPending ? 'Guardando…' : 'Guardar borrador'}
-        </button>
+        {/* Un finalizado no vuelve a borrador: solo se guardan sus cambios. */}
+        {!editandoFinalizado && (
+          <button
+            type="button"
+            className="btn-secundario"
+            disabled={ocupado}
+            onClick={guardarBorrador}
+          >
+            {guardar.isPending && !generando ? 'Guardando…' : 'Guardar borrador'}
+          </button>
+        )}
         <button type="button" className="btn-primario" disabled={ocupado} onClick={finalizar}>
-          {generando ? 'Generando PDF…' : 'Finalizar y enviar'}
+          {generando ? 'Guardando…' : editandoFinalizado ? 'Guardar cambios' : 'Finalizar'}
         </button>
       </div>
     </>
@@ -295,8 +364,13 @@ function FichaCliente({ cliente }: { cliente: Cliente }) {
  * el vendedor ve al capturar si completó caja o le faltan unidades, en vez de
  * enterarse el sábado cuando arma el corte.
  */
-function TablaItems() {
+function TablaItems({ productos }: { productos: Producto[] }) {
   const items = usePedidoBorrador((s) => s.items);
+  // Precio vigente del catalogo, para mostrarlo cuando el del pedido se cambio.
+  const precioLista = useMemo(
+    () => new Map(productos.map((p) => [p.id, p.precio])),
+    [productos],
+  );
   const actualizar = usePedidoBorrador((s) => s.actualizarItem);
   const quitar = usePedidoBorrador((s) => s.quitarItem);
 
@@ -312,7 +386,7 @@ function TablaItems() {
             <th>Artículo</th>
             <th style={{ width: 90 }}>Cant.</th>
             <th style={{ width: 90 }}>Cajas</th>
-            <th style={{ width: 100 }}>Precio</th>
+            <th style={{ width: 120 }}>Precio</th>
             <th style={{ width: 80 }}>Desc. %</th>
             <th>Observación</th>
             <th style={{ width: 110 }}>Subtotal</th>
@@ -324,6 +398,7 @@ function TablaItems() {
             <FilaItem
               key={it.lineId}
               item={it}
+              precioLista={precioLista.get(it.id)}
               onCambiar={(patch) => actualizar(it.lineId, patch)}
               onQuitar={() => quitar(it.lineId)}
             />
@@ -336,13 +411,17 @@ function TablaItems() {
 
 function FilaItem({
   item,
+  precioLista,
   onCambiar,
   onQuitar,
 }: {
   item: ItemPedido;
+  /** Undefined si el articulo ya no esta en el catalogo. */
+  precioLista: number | undefined;
   onCambiar: (patch: Partial<ItemPedido>) => void;
   onQuitar: () => void;
 }) {
+  const cambiado = precioLista !== undefined && precioLista !== item.precio;
   const l = calcularLinea(item);
   const embalaje = item.linea === 'CONDIMAR' ? item.embalaje : 1;
   const cajas = unidadesACajas(Number(item.cantidad) || 0, embalaje);
@@ -370,8 +449,27 @@ function FilaItem({
         <CeldaCajas cajas={cajas.cajas} pendientes={cajas.unidadesPendientes} />
       </td>
 
-      <td data-etiqueta="Precio" className="num">
-        {COP(item.precio)}
+      {/*
+        El precio se cambia solo en este pedido: queda guardado en su renglon
+        y sale en la factura, pero el catalogo no se toca.
+      */}
+      <td data-etiqueta="Precio">
+        <CampoNumero
+          valor={item.precio}
+          min={0}
+          etiqueta={`Precio de ${item.producto}`}
+          onCambiar={(precio) => onCambiar({ precio })}
+        />
+        {cambiado && (
+          <button
+            type="button"
+            className="precio-lista"
+            title="Volver al precio del catálogo"
+            onClick={() => onCambiar({ precio: precioLista })}
+          >
+            Lista {COP(precioLista)} ↺
+          </button>
+        )}
       </td>
 
       <td data-etiqueta="Descuento %">

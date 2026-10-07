@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { computeTotales } from '../domain';
 import type { ItemPedido, Pedido } from '../domain/types';
 import { imponerDosPorHoja } from './imponer';
-import { MEDIA_CARTA_HORIZONTAL } from './formatos';
+import { MEDIA_CARTA } from './formatos';
 import { PedidoPDF, PedidosPDF } from './PedidoPDF';
 
 // --- Andamiaje -------------------------------------------------------------
@@ -84,10 +84,12 @@ function textoDe(buf: Buffer): string {
 
 // --- Formato del pedido ----------------------------------------------------
 
-describe('pedido en media carta horizontal', () => {
-  it('mide 612 x 396 puntos: la mitad exacta de una carta', async () => {
+describe('pedido en media carta vertical', () => {
+  it('mide 396 x 612 puntos: 14 x 21,6 cm, igual que la media hoja en la bandeja', async () => {
+    // Una primera version era horizontal y la impresora corto toda la columna
+    // izquierda al no rotarla. Pagina igual al papel: nada que rotar.
     const buf = await renderToBuffer(<PedidoPDF pedido={corto(1)} />);
-    expect(await tamanos(buf)).toEqual([MEDIA_CARTA_HORIZONTAL]);
+    expect(await tamanos(buf)).toEqual([MEDIA_CARTA]);
   });
 
   it('un pedido corto cabe en una sola media hoja', async () => {

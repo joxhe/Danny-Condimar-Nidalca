@@ -166,6 +166,29 @@ export interface Presupuesto {
   metaPesos: number;
 }
 
+/**
+ * Correccion a mano del Informe, en la unidad de su fila: cajas en las
+ * referencias, pesos en el total de la linea.
+ *
+ *   inicial     Ventas del mes que no estan en la app, porque se empezo a
+ *               usarla con el mes andando. Suma al acumulado de todo el mes.
+ *   devolucion  Lo devuelto en un periodo. Resta en ese periodo y, en los
+ *               siguientes del mes, desde el acumulado anterior.
+ */
+export interface Ajuste {
+  id: string;
+  tipo: 'inicial' | 'devolucion';
+  anio: number;
+  mes: number;
+  /** Solo en devoluciones: el periodo en que se registraron. */
+  desde: string;
+  hasta: string;
+  linea: Linea;
+  /** Id de referencia, o "TOTAL" para la fila en pesos de la linea. */
+  referenciaId: string;
+  valor: number;
+}
+
 /** Corte semanal. El cliente los arma los sabados. */
 export interface Corte {
   id: string;

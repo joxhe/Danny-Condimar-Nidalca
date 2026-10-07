@@ -5,3 +5,5 @@ export * from './formato';
 export * from './informes';
 export * from './cajas';
 export * from './informeSemanal';
+export * from './periodos';
+export * from './ajustes';

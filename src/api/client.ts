@@ -1,5 +1,6 @@
 import { uid } from '../domain/formato';
 import type {
+  Ajuste,
   Cliente,
   Corte,
   Presupuesto,
@@ -151,12 +152,32 @@ function normalizarReferencia(r: Record<string, unknown>): Referencia {
 export interface Planeacion {
   cortes: Corte[];
   presupuestos: Presupuesto[];
+  ajustes: Ajuste[];
+}
+
+const lineaDe = (v: unknown): Linea =>
+  String(v).toUpperCase() === 'NIDALCA' ? 'NIDALCA' : 'CONDIMAR';
+
+/** Un ajuste leido de la hoja. Antes de la version 1.8.0 del script no vienen. */
+function normalizarAjuste(a: Record<string, unknown>): Ajuste {
+  return {
+    id: String(a.id ?? '').trim(),
+    tipo: String(a.tipo) === 'devolucion' ? 'devolucion' : 'inicial',
+    anio: Number(a.anio) || 0,
+    mes: Number(a.mes) || 0,
+    desde: soloFecha(a.desde),
+    hasta: soloFecha(a.hasta),
+    linea: lineaDe(a.linea),
+    referenciaId: String(a.referencia_id ?? '').trim(),
+    valor: Number(a.valor) || 0,
+  };
 }
 
 export async function fetchPlaneacion(signal?: AbortSignal): Promise<Planeacion> {
   const raw = await apiGet<{
     cortes?: Record<string, unknown>[];
     presupuestos?: Record<string, unknown>[];
+    ajustes?: Record<string, unknown>[];
   }>('planeacion', signal);
 
   return {
@@ -178,7 +199,31 @@ export async function fetchPlaneacion(signal?: AbortSignal): Promise<Planeacion>
       metaCajas: Number(p.meta_cajas) || 0,
       metaPesos: Number(p.meta_pesos) || 0,
     })),
+    ajustes: (raw.ajustes ?? []).map(normalizarAjuste),
   };
+}
+
+/**
+ * Guarda ajustes del Informe por id. Uno en cero se borra de la hoja.
+ * La hoja los llama `referencia_id`, como en el resto de las pestañas.
+ */
+export function guardarAjustes(datos: Ajuste[]) {
+  const ahora = new Date().toISOString();
+  return apiPost<unknown>({
+    accion: 'guardarAjustes',
+    datos: datos.map((a) => ({
+      id: a.id,
+      tipo: a.tipo,
+      anio: a.anio,
+      mes: a.mes,
+      desde: a.desde,
+      hasta: a.hasta,
+      linea: a.linea,
+      referencia_id: a.referenciaId,
+      valor: a.valor,
+      updated_at: ahora,
+    })),
+  });
 }
 
 /** Reemplaza la pestaña completa: hay que mandar todos los meses, no solo uno. */

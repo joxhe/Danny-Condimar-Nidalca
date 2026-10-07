@@ -220,7 +220,8 @@ describe('InformePDF', () => {
 
 import { construirInformeSemanal } from '../domain/informeSemanal';
 import { InformeSemanalPDF } from './InformeSemanalPDF';
-import type { Corte, Presupuesto, Referencia } from '../domain/types';
+import type { Periodo } from '../domain/periodos';
+import type { Presupuesto, Referencia } from '../domain/types';
 
 const REFS: Referencia[] = [
   { id: 'BOLSA-INST', linea: 'CONDIMAR', etiqueta: 'BOLSA INST', orden: 1 },
@@ -233,25 +234,15 @@ const METAS: Presupuesto[] = [
   { linea: 'CONDIMAR', referenciaId: 'TOTAL', anio: 2026, mes: 9, metaCajas: 0, metaPesos: 102314380 },
 ];
 
-const CORTE: Corte = {
-  id: '2026-09-S2',
-  anio: 2026,
-  mes: 9,
-  semana: 2,
-  titulo: '12 de Septiembre Sincelejo',
-  ciudad: 'SINCELEJO',
-  fechaCorte: '',
-  cerrado: false,
-};
+const SEMANA: Periodo = { desde: '2026-09-14', hasta: '2026-09-19' };
 
 describe('InformeSemanalPDF', () => {
   const informe = construirInformeSemanal({
-    corte: CORTE,
-    cortes: [{ ...CORTE, id: '2026-09-S1', semana: 1 }, CORTE],
+    periodo: SEMANA,
     pedidos: [
       {
         ...pedido(ITEMS_REALES),
-        fecha: '2026-09-10',
+        fecha: '2026-09-15',
         estado: 'finalizado',
       },
     ],
@@ -302,5 +293,10 @@ describe('InformeSemanalPDF', () => {
   it('avisa que las unidades sueltas quedan pendientes', async () => {
     const texto = textoDe(await renderToBuffer(<InformeSemanalPDF informe={informe} />));
     expect(texto).toContain('cajas completas');
+  });
+
+  it('nombra el periodo elegido', async () => {
+    const texto = textoDe(await renderToBuffer(<InformeSemanalPDF informe={informe} />));
+    expect(texto).toContain('del 14 al 19 de septiembre de 2026');
   });
 });

@@ -95,10 +95,12 @@ const s = StyleSheet.create({
 });
 
 export function InformeSemanalPDF({ informe }: { informe: InformeSemanal }) {
-  const { corte, desde, hasta, filas, granTotal } = informe;
+  const { titulo, desde, hasta, filas, granTotal } = informe;
+  // Sin devoluciones el informe sale con las columnas de siempre.
+  const conDevoluciones = [...filas, granTotal].some((f) => f.devoluciones !== 0);
 
   return (
-    <Document title={`Informe ${corte.titulo}`} creator="Pedidos Condimar / Nidalca">
+    <Document title={`Informe ${titulo}`} creator="Pedidos Condimar / Nidalca">
       <Page size="LETTER" orientation="landscape" style={s.page}>
         <View fixed>
           <View style={s.encabezado}>
@@ -115,20 +117,18 @@ export function InformeSemanalPDF({ informe }: { informe: InformeSemanal }) {
               </View>
               <View>
                 <Text style={s.titulo}>RESUMEN DE VENTAS</Text>
-                <Text style={s.chico}>{corte.titulo}</Text>
+                <Text style={s.chico}>Periodo: {titulo}</Text>
                 <Text style={s.chico}>
-                  Periodo: {fmtDate(desde)} al {fmtDate(hasta)}
+                  {fmtDate(desde)} al {fmtDate(hasta)}
                 </Text>
               </View>
             </View>
 
+            {/* Sin numero de pagina: en esta columna alineada a la derecha el
+                texto dinamico no se dibuja. Va en el pie. */}
             <View style={s.derecha}>
               <Text style={s.chico}>Generado: {fmtDate(todayISO())}</Text>
-              <Text style={s.chico}>{informe.pedidosContados} pedido(s) en la semana</Text>
-              <Text
-                style={s.chico}
-                render={({ pageNumber, totalPages }) => `Pag. ${pageNumber} de ${totalPages}`}
-              />
+              <Text style={s.chico}>{informe.pedidosContados} pedido(s) en el periodo</Text>
             </View>
           </View>
 
@@ -136,6 +136,7 @@ export function InformeSemanalPDF({ informe }: { informe: InformeSemanal }) {
             <Text style={s.colRef}>REFERENCIA</Text>
             <Text style={s.colNum}>ACUM. ANT.</Text>
             <Text style={s.colNum}>VTAS SEMANA</Text>
+            {conDevoluciones && <Text style={s.colNum}>DEVOLUC.</Text>}
             <Text style={s.colNum}>NUEVO ACUM.</Text>
             <Text style={s.colNum}>PRESUPUESTO</Text>
             <Text style={s.colPct}>% CUMPL</Text>
@@ -144,13 +145,16 @@ export function InformeSemanalPDF({ informe }: { informe: InformeSemanal }) {
         </View>
 
         {filas.map((f) => (
-          <Renglon key={f.linea + f.referenciaId} f={f} />
+          <Renglon key={f.linea + f.referenciaId} f={f} conDevoluciones={conDevoluciones} />
         ))}
 
         <View style={s.filaGran} wrap={false}>
           <Text style={s.colRef}>{granTotal.etiqueta}</Text>
           <Text style={s.colNum}>{valor(granTotal, granTotal.acumAnterior)}</Text>
           <Text style={s.colNum}>{valor(granTotal, granTotal.ventasSemana)}</Text>
+          {conDevoluciones && (
+            <Text style={s.colNum}>{valor(granTotal, granTotal.devoluciones)}</Text>
+          )}
           <Text style={s.colNum}>{valor(granTotal, granTotal.nuevoAcumulado)}</Text>
           <Text style={s.colNum}>{valor(granTotal, granTotal.presupuesto)}</Text>
           <Text style={s.colPct}>{PCT(granTotal.pctCumplimiento)}</Text>
@@ -160,12 +164,13 @@ export function InformeSemanalPDF({ informe }: { informe: InformeSemanal }) {
         <View wrap={false}>
           <Text style={s.nota}>
             Las filas de referencia estan en CAJAS; los totales, en PESOS. Solo se cuentan
-            cajas completas: las unidades sueltas quedan pendientes para el corte siguiente.
+            cajas completas: las unidades sueltas quedan pendientes hasta completar la caja.
+            {conDevoluciones && ' NUEVO ACUM. = ACUM. ANT. + VTAS SEMANA - DEVOLUC.'}
           </Text>
         </View>
 
         <View style={s.pie} fixed>
-          <Text>Resumen de ventas - {corte.titulo}</Text>
+          <Text>Resumen de ventas - {titulo}</Text>
           <Text render={({ pageNumber, totalPages }) => `Pag. ${pageNumber}/${totalPages}`} />
         </View>
       </Page>
@@ -173,12 +178,13 @@ export function InformeSemanalPDF({ informe }: { informe: InformeSemanal }) {
   );
 }
 
-function Renglon({ f }: { f: FilaInforme }) {
+function Renglon({ f, conDevoluciones }: { f: FilaInforme; conDevoluciones: boolean }) {
   return (
     <View style={f.esTotal ? s.filaTotal : s.fila} wrap={false}>
       <Text style={s.colRef}>{f.etiqueta}</Text>
       <Text style={s.colNum}>{valor(f, f.acumAnterior)}</Text>
       <Text style={s.colNum}>{valor(f, f.ventasSemana)}</Text>
+      {conDevoluciones && <Text style={s.colNum}>{valor(f, f.devoluciones)}</Text>}
       <Text style={s.colNum}>{valor(f, f.nuevoAcumulado)}</Text>
       <Text style={s.colNum}>{valor(f, f.presupuesto)}</Text>
       <Text style={s.colPct}>{PCT(f.pctCumplimiento)}</Text>

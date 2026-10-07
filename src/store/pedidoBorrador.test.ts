@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProductoCondimar } from '../domain/types';
+import { todayISO } from '../domain/formato';
+import type { Pedido, ProductoCondimar } from '../domain/types';
 
 /*
  * El borrador se persiste en localStorage. En Node no existe, asi que se
@@ -91,5 +92,59 @@ describe('identidad del pedido al guardar', () => {
     const primero = usePedidoBorrador.getState().asegurarId();
     usePedidoBorrador.getState().limpiar();
     expect(usePedidoBorrador.getState().asegurarId()).not.toBe(primero);
+  });
+});
+
+describe('abrir un pedido guardado para editarlo', () => {
+  function guardado(estado: Pedido['estado'], fecha: string): Pedido {
+    const b = usePedidoBorrador.getState();
+    b.agregarProducto(producto('PIMIENTA'));
+    b.asegurarId();
+    const p = { ...usePedidoBorrador.getState().construir(estado, 7), fecha };
+    usePedidoBorrador.getState().limpiar();
+    return p;
+  }
+
+  it('un finalizado conserva su fecha, aunque sea pasada', () => {
+    usePedidoBorrador.getState().cargarDesde(guardado('finalizado', '2026-09-25'));
+    const s = usePedidoBorrador.getState();
+    expect(s.fecha).toBe('2026-09-25');
+    expect(s.estadoOriginal).toBe('finalizado');
+  });
+
+  it('un borrador viejo se adelanta a hoy, como antes', () => {
+    usePedidoBorrador.getState().cargarDesde(guardado('borrador', '2020-01-01'));
+    expect(usePedidoBorrador.getState().fecha).toBe(todayISO());
+    expect(usePedidoBorrador.getState().estadoOriginal).toBe('borrador');
+  });
+
+  it('editar conserva id y numero: se reemplaza el mismo pedido', () => {
+    const p = guardado('finalizado', '2026-09-25');
+    usePedidoBorrador.getState().cargarDesde(p);
+    const otra = usePedidoBorrador.getState().construir('finalizado', 7);
+    expect(otra.id).toBe(p.id);
+    expect(otra.numero).toBe(7);
+  });
+
+  it('el precio cambiado queda en el renglon del pedido', () => {
+    const b = usePedidoBorrador.getState();
+    const lineId = b.agregarProducto(producto('COMINO'));
+    usePedidoBorrador.getState().actualizarItem(lineId, { precio: 850 });
+    const p = usePedidoBorrador.getState().construir('borrador', 1);
+    expect(p.items[0].precio).toBe(850);
+    expect(p.totales.bruto).toBe(850);
+  });
+
+  it('limpiar deja el formulario como un pedido nuevo', () => {
+    usePedidoBorrador.getState().cargarDesde(guardado('finalizado', '2026-09-25'));
+    usePedidoBorrador.getState().limpiar();
+    const s = usePedidoBorrador.getState();
+    expect(s.cliente).toBeNull();
+    expect(s.items).toEqual([]);
+    expect(s.numero).toBeNull();
+    expect(s.orderId).toBeNull();
+    expect(s.estadoOriginal).toBeNull();
+    expect(s.obsGenerales).toBe('');
+    expect(s.fecha).toBe(todayISO());
   });
 });

@@ -87,7 +87,19 @@ export function Buscador<T>({
     }
   }
 
-  const texto = abierto ? consulta : valor ? etiqueta(valor) : consulta;
+  /*
+   * Cerrado, un buscador con `valor` muestra lo elegido, o nada si no hay
+   * eleccion. Antes caia en `consulta`, que al elegir queda con el nombre: al
+   * limpiar el pedido el cliente se iba, pero su nombre seguia escrito.
+   * Sin `valor` (el de articulos) se deja lo que se haya tecleado.
+   */
+  const texto = abierto
+    ? consulta
+    : valor !== undefined
+      ? valor
+        ? etiqueta(valor)
+        : ''
+      : consulta;
 
   return (
     <div className="buscador" ref={caja}>
